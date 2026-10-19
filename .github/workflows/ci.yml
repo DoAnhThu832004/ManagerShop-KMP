@@ -5,17 +5,21 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-  workflow_dispatch: # Cho phép bấm chạy thủ công trên GitHub UI
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true # Tự hủy job cũ nếu có commit mới đẩy lên cùng PR
+  cancel-in-progress: true
 
 jobs:
   build-and-test:
     name: Build & Test (Ubuntu)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+
+    defaults:
+      run:
+        working-directory: ./ManagerShop
 
     steps:
       - name: Checkout Code
@@ -30,7 +34,8 @@ jobs:
       - name: Setup Gradle Cache
         uses: gradle/actions/setup-gradle@v4
         with:
-          cache-read-only: ${{ github.ref != 'refs/heads/main' }} # Chỉ lưu cache mới trên nhánh main
+          build-root-directory: ./ManagerShop
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
       - name: Grant Execute Permission for Gradlew
         run: chmod +x gradlew
@@ -50,7 +55,7 @@ jobs:
         with:
           name: test-reports
           path: |
-            shared/build/reports/tests/
+            ManagerShop/shared/build/reports/tests/
           retention-days: 7
 
       - name: Upload Android Debug APK
@@ -58,5 +63,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: manager-shop-debug-apk
-          path: androidApp/build/outputs/apk/debug/*.apk
+          path: ManagerShop/androidApp/build/outputs/apk/debug/*.apk
           retention-days: 7
