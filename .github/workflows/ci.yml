@@ -25,16 +25,15 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Java 17
+      - name: Setup Java 21 (Azul Zulu)
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: 'zulu'
+          java-version: '21'
 
       - name: Setup Gradle Cache
         uses: gradle/actions/setup-gradle@v4
         with:
-          build-root-directory: ./ManagerShop
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
       - name: Grant Execute Permission for Gradlew
