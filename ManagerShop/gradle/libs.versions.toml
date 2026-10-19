@@ -23,6 +23,7 @@ coil3 = "3.0.4"
 compottie = "2.0.0-rc04"
 kotlinx-serialization = "1.7.3"
 kotlin-wrappers = "2026.9.3"
+buildkonfig = "0.15.2"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -87,3 +88,4 @@ kotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", versio
 
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 androidxRoom = { id = "androidx.room", version.ref = "room" }
+buildkonfig = { id = "com.codingfeline.buildkonfig", version.ref = "buildkonfig" }

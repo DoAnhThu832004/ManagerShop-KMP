@@ -10,6 +10,12 @@ local.properties
 captures
 .externalNativeBuild
 .cxx
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.key
+.env
 *.xcodeproj/*
 !*.xcodeproj/project.pbxproj
 !*.xcodeproj/xcshareddata/
