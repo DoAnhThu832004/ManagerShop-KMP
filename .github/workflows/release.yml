@@ -37,8 +37,10 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Decode Keystore from Secret
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > release.jks
+          echo "$KEYSTORE_BASE64" | tr -d '\r\n ' | base64 -d > release.jks
 
       - name: Build Signed Release APK & Bundle (AAB)
         env:
