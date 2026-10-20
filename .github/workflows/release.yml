@@ -159,3 +159,25 @@ jobs:
           generate_release_notes: true
           draft: false
           prerelease: false
+
+      - name: Send Discord Release Notification
+        if: always()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          if [ -n "$DISCORD_WEBHOOK" ]; then
+            if [ "${{ job.status }}" = "success" ]; then
+              COLOR=3066993
+              TITLE="🚀 Release ManagerShop ${{ github.ref_name }} Đã Xuất Bản!"
+              DESC="Bản cài đặt mới cho cả 4 nền tảng đã sẵn sàng:\\n• 📱 Android (.apk, .aab)\\n• 🪟 Windows (.msi)\\n• 🍏 macOS (.dmg)\\n• 🐧 Linux (.deb)\\n\\n👉 [Nhấn vào đây để tải bộ cài trên GitHub](${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }})"
+            else
+              COLOR=15158332
+              TITLE="❌ Release ManagerShop Thất Bại"
+              DESC="Có lỗi xảy ra trong quá trình đóng gói và phát hành. Vui lòng kiểm tra tab Actions trên GitHub."
+            fi
+
+            curl -H "Content-Type: application/json" \
+                 -X POST \
+                 -d "{\"embeds\": [{\"title\": \"$TITLE\", \"description\": \"$DESC\", \"color\": $COLOR}]}" \
+                 "$DISCORD_WEBHOOK"
+          fi

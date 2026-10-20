@@ -64,3 +64,15 @@ jobs:
           name: manager-shop-debug-apk
           path: ManagerShop/androidApp/build/outputs/apk/debug/*.apk
           retention-days: 7
+
+      - name: Send Discord Alert on Failure
+        if: failure()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          if [ -n "$DISCORD_WEBHOOK" ]; then
+            curl -H "Content-Type: application/json" \
+                 -X POST \
+                 -d "{\"embeds\": [{\"title\": \"⚠️ CI Pipeline Bị Lỗi trên nhánh ${{ github.ref_name }}\", \"description\": \"Commit **${{ github.sha }}** bị lỗi build hoặc test.\\n\\n[Xem chi tiết lỗi trên GitHub](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\", \"color\": 15158332}]}" \
+                 "$DISCORD_WEBHOOK"
+          fi

@@ -22,6 +22,9 @@ import managershop.shared.generated.resources.compose_multiplatform
 @Composable
 @Preview
 fun App() {
+    LaunchedEffect(Unit) {
+        MonitoringManager.initMonitoring()
+    }
     MaterialTheme {
         var showContent by remember { mutableStateOf(false) }
         Column(

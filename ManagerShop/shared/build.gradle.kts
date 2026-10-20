@@ -62,6 +62,8 @@ kotlin {
             // Coroutines & Serialization
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
+            // Sentry KMP Crash Reporting
+            implementation(libs.sentry.kmp)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -92,6 +94,7 @@ buildkonfig {
         buildConfigField(com.codingfeline.buildkonfig.compiler.FieldSpec.Type.STRING, "BASE_URL", "http://10.0.2.2:8080/api")
         buildConfigField(com.codingfeline.buildkonfig.compiler.FieldSpec.Type.STRING, "APP_VERSION", "1.0.0")
         buildConfigField(com.codingfeline.buildkonfig.compiler.FieldSpec.Type.BOOLEAN, "IS_DEBUG", "true")
+        buildConfigField(com.codingfeline.buildkonfig.compiler.FieldSpec.Type.STRING, "SENTRY_DSN", "")
     }
 }
 
