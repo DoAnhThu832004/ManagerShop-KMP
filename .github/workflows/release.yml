@@ -1,0 +1,161 @@
+name: CD Release Pipeline
+
+on:
+  push:
+    tags:
+      - 'v*' # Kích hoạt khi tạo tag: v1.0.0, v1.0.1...
+  workflow_dispatch: # Cho phép bấm chạy thủ công trên GitHub UI
+
+permissions:
+  contents: write # Quyền tạo GitHub Release và upload assets
+
+jobs:
+  # ==========================================
+  # JOB 1: Build Android Release (APK & AAB)
+  # ==========================================
+  build-android:
+    name: Build Android Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./ManagerShop
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Java 21 (Azul Zulu)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '21'
+
+      - name: Setup Gradle Cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Decode Keystore from Secret
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > release.jks
+
+      - name: Build Signed Release APK & Bundle (AAB)
+        env:
+          KEYSTORE_PATH: release.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          ALIAS_NAME: ${{ secrets.ALIAS_NAME }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew :androidApp:assembleRelease :androidApp:bundleRelease
+
+      - name: Upload Android Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release-assets
+          path: |
+            ManagerShop/androidApp/build/outputs/apk/release/*.apk
+            ManagerShop/androidApp/build/outputs/bundle/release/*.aab
+          retention-days: 2
+
+  # ==========================================
+  # JOB 2: Build Desktop Release (Matrix: Win, Mac, Linux)
+  # ==========================================
+  build-desktop:
+    name: Build Desktop (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact-name: desktop-windows
+          - os: macos-latest
+            artifact-name: desktop-macos
+          - os: ubuntu-latest
+            artifact-name: desktop-linux
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./ManagerShop
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Java 21 (Azul Zulu)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '21'
+
+      - name: Setup Gradle Cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant Execute Permission for Gradlew
+        run: chmod +x gradlew
+
+      - name: Package Desktop App for Current OS
+        run: ./gradlew :desktopApp:packageDistributionForCurrentOS
+
+      - name: Upload Desktop Artifact (${{ matrix.os }})
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: |
+            ManagerShop/desktopApp/build/compose/binaries/main/*/*.msi
+            ManagerShop/desktopApp/build/compose/binaries/main/*/*.exe
+            ManagerShop/desktopApp/build/compose/binaries/main/*/*.dmg
+            ManagerShop/desktopApp/build/compose/binaries/main/*/*.deb
+          retention-days: 2
+
+  # ==========================================
+  # JOB 3: Publish to GitHub Releases
+  # ==========================================
+  publish-release:
+    name: Publish GitHub Release
+    needs: [build-android, build-desktop]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download Android Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: android-release-assets
+          path: release-files
+
+      - name: Download Windows Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: desktop-windows
+          path: release-files
+
+      - name: Download macOS Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: desktop-macos
+          path: release-files
+
+      - name: Download Linux Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: desktop-linux
+          path: release-files
+
+      - name: Create GitHub Release & Upload All Binaries
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-files/**/*.apk
+            release-files/**/*.aab
+            release-files/**/*.msi
+            release-files/**/*.exe
+            release-files/**/*.dmg
+            release-files/**/*.deb
+          generate_release_notes: true
+          draft: false
+          prerelease: false
