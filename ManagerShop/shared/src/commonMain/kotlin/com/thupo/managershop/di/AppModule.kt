@@ -13,6 +13,7 @@ import org.koin.dsl.module
  * khi khởi tạo Koin ở mỗi entry point.
  */
 val appModule = module {
+    includes(storageModule)
 
     // --- Core ---
     single<AppDispatchers> { DefaultAppDispatchers() }
