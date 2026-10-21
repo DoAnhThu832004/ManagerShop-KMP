@@ -34,6 +34,8 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.compose.uiTooling)
+            // Ktor engine cho Android
+            implementation(libs.ktor.client.okhttp)
         }
         commonMain.dependencies {
             implementation(libs.compose.runtime)
@@ -62,11 +64,26 @@ kotlin {
             // Coroutines & Serialization
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
+            // Ktor HTTP Client
+            implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.content.negotiation)
+            implementation(libs.ktor.serialization.kotlinx.json)
+            implementation(libs.ktor.client.auth)
+            implementation(libs.ktor.client.logging)
+            // DateTime
+            implementation(libs.kotlinx.datetime)
             // Sentry KMP Crash Reporting
             implementation(libs.sentry.kmp)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+            implementation(libs.ktor.client.mock)
+            implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.turbine)
+        }
+        jvmMain.dependencies {
+            // Ktor engine cho Desktop JVM
+            implementation(libs.ktor.client.okhttp)
         }
     }
 }
@@ -91,7 +108,7 @@ buildkonfig {
     packageName = "com.thupo"
     exposeObjectWithName = "BuildKonfig"
     defaultConfigs {
-        buildConfigField(com.codingfeline.buildkonfig.compiler.FieldSpec.Type.STRING, "BASE_URL", "http://10.0.2.2:8080/api")
+        buildConfigField(com.codingfeline.buildkonfig.compiler.FieldSpec.Type.STRING, "BASE_URL", "https://manager-shop.onrender.com/api/v1/")
         buildConfigField(com.codingfeline.buildkonfig.compiler.FieldSpec.Type.STRING, "APP_VERSION", "1.0.0")
         buildConfigField(com.codingfeline.buildkonfig.compiler.FieldSpec.Type.BOOLEAN, "IS_DEBUG", "true")
         buildConfigField(com.codingfeline.buildkonfig.compiler.FieldSpec.Type.STRING, "SENTRY_DSN", "")

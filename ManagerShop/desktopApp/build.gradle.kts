@@ -13,6 +13,9 @@ dependencies {
     implementation(libs.kotlinx.coroutinesSwing)
 
     implementation(libs.compose.uiToolingPreview)
+
+    // Koin core – cần trực tiếp vì desktopApp là JVM module riêng
+    implementation(libs.koin.core)
 }
 
 compose.desktop {
