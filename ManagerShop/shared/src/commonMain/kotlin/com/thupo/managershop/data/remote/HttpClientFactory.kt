@@ -2,17 +2,38 @@
 package com.thupo.managershop.data.remote
 
 import com.thupo.BuildKonfig
+import com.thupo.managershop.data.local.TokenManager
+import com.thupo.managershop.data.remote.dto.LoginResponseDto
+import com.thupo.managershop.data.remote.dto.RefreshTokenRequestDto
 import io.ktor.client.HttpClient
+import io.ktor.client.HttpClientConfig
+import io.ktor.client.call.body
 import io.ktor.client.engine.HttpClientEngineFactory
+import io.ktor.client.plugins.ClientRequestException
+import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.ResponseException
+import io.ktor.client.plugins.auth.Auth
+import io.ktor.client.plugins.auth.providers.BearerTokens
+import io.ktor.client.plugins.auth.providers.bearer
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.logging.DEFAULT
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logger
 import io.ktor.client.plugins.logging.Logging
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.contentType
+import io.ktor.http.encodedPath
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.io.IOException
 import kotlinx.serialization.json.Json
 
 /**
@@ -24,53 +45,175 @@ import kotlinx.serialization.json.Json
  * - HttpTimeout: 60s cho connect, request, socket (hỗ trợ Render cold start)
  * - Logging: Sanitize Header `Authorization`, mask mật khẩu trong log body
  * - expectSuccess = true: Ném ResponseException khi gặp lỗi HTTP để [safeApiCall] bắt và xử lý
+ * - Auth Bearer Plugin: Tự động đính kèm Access Token, Mutex double-checking khi refresh token 401
  */
 object HttpClientFactory {
 
     private val passwordRegex = Regex("(\"password\"\\s*:\\s*\")[^\"]*(\")", RegexOption.IGNORE_CASE)
+    private val refreshMutex = Mutex()
 
-    fun create(engineFactory: HttpClientEngineFactory<*>): HttpClient {
-        return HttpClient(engineFactory) {
-            // Tự động ném ResponseException (ClientRequestException / ServerResponseException) khi status >= 300
-            expectSuccess = true
+    private fun configureBase(config: HttpClientConfig<*>) {
+        config.expectSuccess = true
 
-            // Base URL cho toàn bộ request
-            defaultRequest {
-                url(BuildKonfig.BASE_URL)
-            }
+        config.defaultRequest {
+            url(BuildKonfig.BASE_URL)
+        }
 
-            // JSON Serialization
-            install(ContentNegotiation) {
-                json(
-                    Json {
-                        ignoreUnknownKeys = true
-                        explicitNulls = false
-                    }
-                )
-            }
-
-            // Timeout 60s đối phó với Render Free Tier cold start (30-50s)
-            install(HttpTimeout) {
-                connectTimeoutMillis = 60_000
-                requestTimeoutMillis = 60_000
-                socketTimeoutMillis = 60_000
-            }
-
-            // HTTP Logging (chỉ kích hoạt chi tiết khi DEBUG, che giấu dữ liệu nhạy cảm)
-            install(Logging) {
-                logger = object : Logger {
-                    override fun log(message: String) {
-                        val sanitizedMessage = message.replace(passwordRegex, "$1***$2")
-                        Logger.DEFAULT.log(sanitizedMessage)
-                    }
+        config.install(ContentNegotiation) {
+            json(
+                Json {
+                    ignoreUnknownKeys = true
+                    explicitNulls = false
                 }
-                level = if (BuildKonfig.IS_DEBUG) LogLevel.ALL else LogLevel.INFO
+            )
+        }
 
-                // Ẩn token trong Authorization header
-                sanitizeHeader { header ->
-                    header.equals(HttpHeaders.Authorization, ignoreCase = true)
+        config.install(HttpTimeout) {
+            connectTimeoutMillis = 60_000
+            requestTimeoutMillis = 60_000
+            socketTimeoutMillis = 60_000
+        }
+
+        config.install(Logging) {
+            logger = object : Logger {
+                override fun log(message: String) {
+                    val sanitizedMessage = message.replace(passwordRegex, "$1***$2")
+                    Logger.DEFAULT.log(sanitizedMessage)
+                }
+            }
+            level = if (BuildKonfig.IS_DEBUG) LogLevel.ALL else LogLevel.INFO
+
+            sanitizeHeader { header ->
+                header.equals(HttpHeaders.Authorization, ignoreCase = true)
+            }
+        }
+    }
+
+    /**
+     * HttpClient phụ: Dùng riêng cho việc gọi `POST auth/refresh`.
+     * KHÔNG cài Auth plugin để chống lỗi lặp vô tận (infinite recursion).
+     */
+    fun createRefreshClient(engineFactory: HttpClientEngineFactory<*>): HttpClient {
+        return HttpClient(engineFactory) {
+            configureBase(this)
+        }
+    }
+
+    /**
+     * HttpClient chính: Tích hợp Ktor Auth Bearer Plugin với Mutex chống gọi song song
+     * và cơ chế Double-Check Lock để đảm bảo an toàn tuyệt đối với Token Rotation.
+     */
+    fun createAuthenticatedClient(
+        engineFactory: HttpClientEngineFactory<*>,
+        tokenManager: TokenManager,
+        refreshClient: HttpClient,
+    ): HttpClient {
+        return HttpClient(engineFactory) {
+            configureBase(this)
+
+            install(Auth) {
+                bearer {
+                    loadTokens {
+                        val accessToken = tokenManager.getAccessToken()
+                        val refreshToken = tokenManager.getRefreshToken()
+                        if (accessToken != null && refreshToken != null) {
+                            BearerTokens(
+                                accessToken = accessToken,
+                                refreshToken = refreshToken,
+                            )
+                        } else {
+                            null
+                        }
+                    }
+
+                    refreshTokens {
+                        val failedRefreshToken = oldTokens?.refreshToken
+
+                        refreshMutex.withLock {
+                            val currentRefreshToken = tokenManager.getRefreshToken()
+                            val currentAccessToken = tokenManager.getAccessToken()
+
+                            // Double-Check Lock:
+                            // Nếu refresh token trong storage đã khác với token của request vừa bị 401
+                            // (nghĩa là request chạy trước vừa hoàn tất việc refresh), dùng ngay token mới,
+                            // KHÔNG gọi API refresh lần nữa để bảo vệ token rotation.
+                            if (currentRefreshToken != null &&
+                                currentRefreshToken != failedRefreshToken &&
+                                currentAccessToken != null
+                            ) {
+                                return@refreshTokens BearerTokens(
+                                    accessToken = currentAccessToken,
+                                    refreshToken = currentRefreshToken,
+                                )
+                            }
+
+                            // Không có refresh token trong storage -> Hủy phiên
+                            if (currentRefreshToken == null) {
+                                tokenManager.clearSession()
+                                return@refreshTokens null
+                            }
+
+                            // Chưa được refresh: Dùng HttpClient phụ gọi POST auth/refresh
+                            try {
+                                val response = refreshClient.post("auth/refresh") {
+                                    contentType(ContentType.Application.Json)
+                                    setBody(RefreshTokenRequestDto(refreshToken = currentRefreshToken))
+                                }
+
+                                val newSession = response.body<LoginResponseDto>()
+                                tokenManager.saveSession(newSession)
+
+                                BearerTokens(
+                                    accessToken = newSession.accessToken,
+                                    refreshToken = newSession.refreshToken,
+                                )
+                            } catch (e: ClientRequestException) {
+                                // Refresh nhận lỗi 4xx (401 hoặc AUTH_REFRESH_REUSED):
+                                // Xóa toàn bộ session và phát SessionEvent.ForceLogout
+                                tokenManager.clearSession()
+                                null
+                            } catch (e: ResponseException) {
+                                if (e.response.status == HttpStatusCode.Unauthorized ||
+                                    e.response.status == HttpStatusCode.Forbidden
+                                ) {
+                                    tokenManager.clearSession()
+                                    null
+                                } else {
+                                    // Lỗi 5xx máy chủ: KHÔNG xóa session, ném ngoại lệ
+                                    throw e
+                                }
+                            } catch (e: HttpRequestTimeoutException) {
+                                // Lỗi mạng (timeout): KHÔNG xóa session, ném ngoại lệ mạng bình thường
+                                throw e
+                            } catch (e: IOException) {
+                                // Lỗi mạng (mất kết nối): KHÔNG xóa session, ném ngoại lệ mạng bình thường
+                                throw e
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Throwable) {
+                                throw e
+                            }
+                        }
+                    }
+
+                    sendWithoutRequest { request ->
+                        val path = request.url.encodedPath.trimEnd('/')
+                        val isPublic = path.endsWith("auth/login") ||
+                                path.endsWith("auth/refresh") ||
+                                path.endsWith("auth/forgot-password") ||
+                                path.endsWith("auth/reset-password") ||
+                                path.endsWith("health")
+                        !isPublic
+                    }
                 }
             }
         }
+    }
+
+    /**
+     * Hàm tiện ích tạo client cơ bản (chưa gắn Auth plugin), dùng cho test hoặc health check đơn giản.
+     */
+    fun create(engineFactory: HttpClientEngineFactory<*>): HttpClient {
+        return createRefreshClient(engineFactory)
     }
 }
