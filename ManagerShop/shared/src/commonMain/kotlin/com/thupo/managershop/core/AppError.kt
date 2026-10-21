@@ -2,45 +2,71 @@
 package com.thupo.managershop.core
 
 /**
- * Sealed class mô tả toàn bộ các trường hợp lỗi có thể xảy ra trong ứng dụng.
- * Mỗi lỗi nghiệp vụ từ backend hoặc lỗi kỹ thuật đều được map về một kiểu cụ thể.
+ * Sealed class mô tả toàn bộ các trường hợp lỗi trong ứng dụng.
+ * Map từ [com.thupo.managershop.data.remote.dto.ErrorResponseDto] qua extension [toAppError()].
  */
-sealed class AppError(open val message: String? = null) {
+sealed class AppError {
 
-    // --- Lỗi xác thực (Authentication / Authorization) ---
+    // ── Authentication / Authorization ──────────────────────────────────────
 
-    /** Sai tên đăng nhập hoặc mật khẩu (HTTP 401). */
-    data class InvalidCredentials(override val message: String? = null) : AppError(message)
+    /**
+     * Sai tên đăng nhập hoặc mật khẩu.
+     * Backend code: AUTH_INVALID_CREDENTIALS / AUTH_BAD_CREDENTIALS (HTTP 401)
+     * @param captchaRequired Backend yêu cầu CAPTCHA ở lần đăng nhập tiếp theo.
+     */
+    data class InvalidCredentials(
+        val captchaRequired: Boolean,
+        val message: String,
+    ) : AppError()
 
-    /** Tài khoản bị khóa do đăng nhập sai nhiều lần. */
-    data class AccountLocked(override val message: String? = null) : AppError(message)
+    /**
+     * Tài khoản tạm thời bị khóa do đăng nhập sai quá nhiều lần.
+     * Backend code: AUTH_ACCOUNT_LOCKED (HTTP 423)
+     * @param retryAfterSeconds Thời gian chờ (giây) trước khi thử lại.
+     */
+    data class AccountLocked(
+        val retryAfterSeconds: Long,
+        val message: String,
+    ) : AppError()
 
-    /** Quá nhiều yêu cầu trong thời gian ngắn (HTTP 429). */
-    data class RateLimited(override val message: String? = null) : AppError(message)
+    /**
+     * Quá nhiều yêu cầu trong thời gian ngắn (rate limiting / IP block).
+     * Backend code: AUTH_RATE_LIMITED / AUTH_IP_BLOCKED (HTTP 429)
+     */
+    data class RateLimited(
+        val retryAfterSeconds: Long,
+        val message: String,
+    ) : AppError()
 
-    /** Phiên đăng nhập hết hạn, cần đăng nhập lại (HTTP 401 – token expired). */
-    data class SessionExpired(override val message: String? = null) : AppError(message)
+    /**
+     * Phiên đăng nhập hết hạn hoặc refresh token bị tái sử dụng.
+     * Backend code: AUTH_TOKEN_EXPIRED / AUTH_REFRESH_REUSED (HTTP 401)
+     */
+    data class SessionExpired(val message: String) : AppError()
 
     /** Mật khẩu mới không đáp ứng chính sách bảo mật. */
-    data class PasswordPolicy(override val message: String? = null) : AppError(message)
+    data class PasswordPolicy(val message: String) : AppError()
 
     /** Mật khẩu mới đã được dùng trước đó. */
-    data class PasswordReused(override val message: String? = null) : AppError(message)
+    data class PasswordReused(val message: String) : AppError()
 
     /** Không có quyền thực hiện thao tác (HTTP 403). */
-    data class Forbidden(override val message: String? = null) : AppError(message)
+    data class Forbidden(val message: String) : AppError()
 
-    // --- Lỗi kỹ thuật ---
+    // ── Lỗi kỹ thuật ────────────────────────────────────────────────────────
 
-    /** Không có kết nối mạng. */
-    data class Network(override val message: String? = null) : AppError(message)
+    /** Không có kết nối mạng hoặc không thể kết nối tới server. */
+    data class Network(val message: String) : AppError()
 
-    /** Yêu cầu hết thời gian chờ. */
-    data class Timeout(override val message: String? = null) : AppError(message)
+    /** Yêu cầu hết thời gian chờ (timeout). */
+    data class Timeout(val message: String) : AppError()
+
+    /** Không parse được JSON response từ server. */
+    data class Serialization(val message: String) : AppError()
 
     /** Lỗi phía máy chủ (HTTP 5xx). */
-    data class Server(val statusCode: Int? = null, override val message: String? = null) : AppError(message)
+    data class Server(val status: Int, val message: String) : AppError()
 
     /** Lỗi không xác định / chưa được xử lý. */
-    data class Unknown(val cause: Throwable? = null, override val message: String? = null) : AppError(message)
+    data class Unknown(val message: String) : AppError()
 }
