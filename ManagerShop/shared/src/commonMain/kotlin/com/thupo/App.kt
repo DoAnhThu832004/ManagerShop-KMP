@@ -35,13 +35,9 @@ import org.koin.compose.koinInject
 
 @Composable
 @Preview
-fun App() {
-    LaunchedEffect(Unit) {
-        MonitoringManager.initMonitoring()
-    }
-
-    val healthApi: HealthApi = koinInject()
-
+fun App(
+    healthApi: HealthApi = koinInject(),
+) {
     val coroutineScope = rememberCoroutineScope()
     var serverStatus by remember { mutableStateOf("Trạng thái máy chủ: Chưa kết nối") }
     var isLoading by remember { mutableStateOf(false) }

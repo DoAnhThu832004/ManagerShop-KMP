@@ -8,6 +8,7 @@ import com.thupo.managershop.data.remote.dto.RefreshTokenRequestDto
 import io.ktor.client.HttpClient
 import io.ktor.client.HttpClientConfig
 import io.ktor.client.call.body
+import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.engine.HttpClientEngineFactory
 import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.plugins.HttpRequestTimeoutException
@@ -74,17 +75,130 @@ object HttpClientFactory {
             socketTimeoutMillis = 60_000
         }
 
-        config.install(Logging) {
-            logger = object : Logger {
-                override fun log(message: String) {
-                    val sanitizedMessage = message.replace(passwordRegex, "$1***$2")
-                    Logger.DEFAULT.log(sanitizedMessage)
+        if (BuildKonfig.IS_DEBUG) {
+            config.install(Logging) {
+                logger = object : Logger {
+                    override fun log(message: String) {
+                        val sanitizedMessage = if (message.contains("password", ignoreCase = true)) {
+                            message.replace(passwordRegex, "$1***$2")
+                        } else {
+                            message
+                        }
+                        Logger.DEFAULT.log(sanitizedMessage)
+                    }
+                }
+                level = LogLevel.ALL
+
+                sanitizeHeader { header ->
+                    header.equals(HttpHeaders.Authorization, ignoreCase = true)
                 }
             }
-            level = if (BuildKonfig.IS_DEBUG) LogLevel.ALL else LogLevel.INFO
+        }
+    }
 
-            sanitizeHeader { header ->
-                header.equals(HttpHeaders.Authorization, ignoreCase = true)
+    /**
+     * Cài đặt Auth Bearer Plugin với Mutex chống gọi song song
+     * và cơ chế Double-Check Lock để đảm bảo an toàn tuyệt đối với Token Rotation.
+     */
+    private fun configureAuth(
+        config: HttpClientConfig<*>,
+        tokenManager: TokenManager,
+        refreshClient: HttpClient,
+    ) {
+        config.install(Auth) {
+            bearer {
+                loadTokens {
+                    val accessToken = tokenManager.getAccessToken()
+                    val refreshToken = tokenManager.getRefreshToken()
+                    if (accessToken != null && refreshToken != null) {
+                        BearerTokens(
+                            accessToken = accessToken,
+                            refreshToken = refreshToken,
+                        )
+                    } else {
+                        null
+                    }
+                }
+
+                refreshTokens {
+                    val failedRefreshToken = oldTokens?.refreshToken
+
+                    refreshMutex.withLock {
+                        val currentRefreshToken = tokenManager.getRefreshToken()
+                        val currentAccessToken = tokenManager.getAccessToken()
+
+                        // Double-Check Lock:
+                        // Nếu refresh token trong storage đã khác với token của request vừa bị 401
+                        // (nghĩa là request chạy trước vừa hoàn tất việc refresh), dùng ngay token mới,
+                        // KHÔNG gọi API refresh lần nữa để bảo vệ token rotation.
+                        if (currentRefreshToken != null &&
+                            currentRefreshToken != failedRefreshToken &&
+                            currentAccessToken != null
+                        ) {
+                            return@refreshTokens BearerTokens(
+                                accessToken = currentAccessToken,
+                                refreshToken = currentRefreshToken,
+                            )
+                        }
+
+                        // Không có refresh token trong storage -> Hủy phiên
+                        if (currentRefreshToken == null) {
+                            tokenManager.clearSession()
+                            return@refreshTokens null
+                        }
+
+                        // Chưa được refresh: Dùng HttpClient phụ gọi POST auth/refresh
+                        try {
+                            val response = refreshClient.post("auth/refresh") {
+                                contentType(ContentType.Application.Json)
+                                setBody(RefreshTokenRequestDto(refreshToken = currentRefreshToken))
+                            }
+
+                            val newSession = response.body<LoginResponseDto>()
+                            tokenManager.saveSession(newSession)
+
+                            BearerTokens(
+                                accessToken = newSession.accessToken,
+                                refreshToken = newSession.refreshToken,
+                            )
+                        } catch (e: ClientRequestException) {
+                            // Refresh nhận lỗi 4xx (401 hoặc AUTH_REFRESH_REUSED):
+                            // Xóa toàn bộ session và phát SessionEvent.ForceLogout
+                            tokenManager.clearSession()
+                            null
+                        } catch (e: ResponseException) {
+                            if (e.response.status == HttpStatusCode.Unauthorized ||
+                                e.response.status == HttpStatusCode.Forbidden
+                            ) {
+                                tokenManager.clearSession()
+                                null
+                            } else {
+                                // Lỗi 5xx máy chủ: KHÔNG xóa session, ném ngoại lệ
+                                throw e
+                            }
+                        } catch (e: HttpRequestTimeoutException) {
+                            // Lỗi mạng (timeout): KHÔNG xóa session, ném ngoại lệ mạng bình thường
+                            throw e
+                        } catch (e: IOException) {
+                            // Lỗi mạng (mất kết nối): KHÔNG xóa session, ném ngoại lệ mạng bình thường
+                            throw e
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Throwable) {
+                            throw e
+                        }
+                    }
+                }
+
+                sendWithoutRequest { request ->
+                    val path = request.url.encodedPath.trimEnd('/')
+                    val isPublic = path.endsWith("auth/login") ||
+                            path.endsWith("auth/refresh") ||
+                            path.endsWith("auth/forgot-password") ||
+                            path.endsWith("auth/reset-password") ||
+                            path.endsWith("health")
+                    !isPublic
+                }
             }
         }
     }
@@ -95,6 +209,13 @@ object HttpClientFactory {
      */
     fun createRefreshClient(engineFactory: HttpClientEngineFactory<*>): HttpClient {
         return HttpClient(engineFactory) {
+            configureBase(this)
+        }
+    }
+
+    /** Overload tạo RefreshClient với engine trực tiếp (dùng cho MockEngine trong Unit Test). */
+    fun createRefreshClient(engine: HttpClientEngine): HttpClient {
+        return HttpClient(engine) {
             configureBase(this)
         }
     }
@@ -110,103 +231,19 @@ object HttpClientFactory {
     ): HttpClient {
         return HttpClient(engineFactory) {
             configureBase(this)
+            configureAuth(this, tokenManager, refreshClient)
+        }
+    }
 
-            install(Auth) {
-                bearer {
-                    loadTokens {
-                        val accessToken = tokenManager.getAccessToken()
-                        val refreshToken = tokenManager.getRefreshToken()
-                        if (accessToken != null && refreshToken != null) {
-                            BearerTokens(
-                                accessToken = accessToken,
-                                refreshToken = refreshToken,
-                            )
-                        } else {
-                            null
-                        }
-                    }
-
-                    refreshTokens {
-                        val failedRefreshToken = oldTokens?.refreshToken
-
-                        refreshMutex.withLock {
-                            val currentRefreshToken = tokenManager.getRefreshToken()
-                            val currentAccessToken = tokenManager.getAccessToken()
-
-                            // Double-Check Lock:
-                            // Nếu refresh token trong storage đã khác với token của request vừa bị 401
-                            // (nghĩa là request chạy trước vừa hoàn tất việc refresh), dùng ngay token mới,
-                            // KHÔNG gọi API refresh lần nữa để bảo vệ token rotation.
-                            if (currentRefreshToken != null &&
-                                currentRefreshToken != failedRefreshToken &&
-                                currentAccessToken != null
-                            ) {
-                                return@refreshTokens BearerTokens(
-                                    accessToken = currentAccessToken,
-                                    refreshToken = currentRefreshToken,
-                                )
-                            }
-
-                            // Không có refresh token trong storage -> Hủy phiên
-                            if (currentRefreshToken == null) {
-                                tokenManager.clearSession()
-                                return@refreshTokens null
-                            }
-
-                            // Chưa được refresh: Dùng HttpClient phụ gọi POST auth/refresh
-                            try {
-                                val response = refreshClient.post("auth/refresh") {
-                                    contentType(ContentType.Application.Json)
-                                    setBody(RefreshTokenRequestDto(refreshToken = currentRefreshToken))
-                                }
-
-                                val newSession = response.body<LoginResponseDto>()
-                                tokenManager.saveSession(newSession)
-
-                                BearerTokens(
-                                    accessToken = newSession.accessToken,
-                                    refreshToken = newSession.refreshToken,
-                                )
-                            } catch (e: ClientRequestException) {
-                                // Refresh nhận lỗi 4xx (401 hoặc AUTH_REFRESH_REUSED):
-                                // Xóa toàn bộ session và phát SessionEvent.ForceLogout
-                                tokenManager.clearSession()
-                                null
-                            } catch (e: ResponseException) {
-                                if (e.response.status == HttpStatusCode.Unauthorized ||
-                                    e.response.status == HttpStatusCode.Forbidden
-                                ) {
-                                    tokenManager.clearSession()
-                                    null
-                                } else {
-                                    // Lỗi 5xx máy chủ: KHÔNG xóa session, ném ngoại lệ
-                                    throw e
-                                }
-                            } catch (e: HttpRequestTimeoutException) {
-                                // Lỗi mạng (timeout): KHÔNG xóa session, ném ngoại lệ mạng bình thường
-                                throw e
-                            } catch (e: IOException) {
-                                // Lỗi mạng (mất kết nối): KHÔNG xóa session, ném ngoại lệ mạng bình thường
-                                throw e
-                            } catch (e: CancellationException) {
-                                throw e
-                            } catch (e: Throwable) {
-                                throw e
-                            }
-                        }
-                    }
-
-                    sendWithoutRequest { request ->
-                        val path = request.url.encodedPath.trimEnd('/')
-                        val isPublic = path.endsWith("auth/login") ||
-                                path.endsWith("auth/refresh") ||
-                                path.endsWith("auth/forgot-password") ||
-                                path.endsWith("auth/reset-password") ||
-                                path.endsWith("health")
-                        !isPublic
-                    }
-                }
-            }
+    /** Overload tạo AuthenticatedClient với engine trực tiếp (dùng cho MockEngine trong Unit Test). */
+    fun createAuthenticatedClient(
+        engine: HttpClientEngine,
+        tokenManager: TokenManager,
+        refreshClient: HttpClient,
+    ): HttpClient {
+        return HttpClient(engine) {
+            configureBase(this)
+            configureAuth(this, tokenManager, refreshClient)
         }
     }
 

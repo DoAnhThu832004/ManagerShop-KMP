@@ -11,9 +11,15 @@ import org.koin.core.logger.Level
 fun main() {
     // Khởi tạo Koin trước khi tạo bất kỳ cửa sổ Compose nào
     startKoin {
-        logger(PrintLogger(Level.DEBUG))
+        if (BuildKonfig.IS_DEBUG) {
+            logger(PrintLogger(Level.INFO))
+        } else {
+            logger(PrintLogger(Level.NONE))
+        }
         modules(appModule)
     }
+
+    MonitoringManager.initMonitoring()
 
     application {
         Window(

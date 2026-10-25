@@ -3,6 +3,7 @@ package com.thupo.managershop.core
 
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
 
 /**
  * Interface trừu tượng hoá các CoroutineDispatcher để dễ mock trong unit test.

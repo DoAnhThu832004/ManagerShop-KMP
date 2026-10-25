@@ -1,21 +1,44 @@
 # Add project specific ProGuard rules here.
 # You can control the set of applied configuration files using the
 # proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Preserve line number information for Sentry stacktraces
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# --- Kotlinx Serialization ---
+-keepattributes *Annotation*, Signature, InnerClasses, EnclosingMethod
+-keepclassmembers class * {
+    @kotlinx.serialization.Serializable <fields>;
+    @kotlinx.serialization.SerialName <fields>;
+}
+-keep class com.thupo.managershop.data.remote.dto.** { *; }
+-keepclassmembers class com.thupo.managershop.data.remote.dto.** {
+    *** Companion;
+}
+-keepclasseswithmembers class * {
+    kotlinx.serialization.KSerializer serializer(...);
+}
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# --- Ktor & OkHttp ---
+-dontwarn io.ktor.**
+-dontwarn okio.**
+-dontwarn okhttp3.**
+-keep class io.ktor.** { *; }
+
+# --- Koin DI ---
+-dontwarn org.koin.**
+-keep class org.koin.** { *; }
+
+# --- Room & SQLite ---
+-keep class androidx.room.** { *; }
+-dontwarn androidx.room.**
+-keep class androidx.sqlite.** { *; }
+
+# --- Sentry KMP ---
+-keep class io.sentry.** { *; }
+-dontwarn io.sentry.**
+
+# --- Coil 3 ---
+-keep class coil3.** { *; }
+-dontwarn coil3.**
