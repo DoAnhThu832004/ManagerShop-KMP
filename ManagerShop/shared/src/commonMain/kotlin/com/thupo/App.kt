@@ -1,6 +1,8 @@
 // shared/src/commonMain/kotlin/com/thupo/App.kt
 package com.thupo
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -29,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.thupo.managershop.data.remote.api.HealthApi
+import com.thupo.managershop.presentation.splash.SplashScreen
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
@@ -42,82 +45,97 @@ fun App(
     var serverStatus by remember { mutableStateOf("Trạng thái máy chủ: Chưa kết nối") }
     var isLoading by remember { mutableStateOf(false) }
 
-    MaterialTheme {
-        Column(
-            modifier = Modifier
-                .background(MaterialTheme.colorScheme.background)
-                .safeContentPadding()
-                .fillMaxSize()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            // Tiêu đề ứng dụng
-            Text(
-                text = "managerShop POS",
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
+    var isSplashFinished by remember { mutableStateOf(false) }
+
+    Crossfade(
+        targetState = isSplashFinished,
+        animationSpec = tween(durationMillis = 600)
+    ) { finished ->
+        if (!finished) {
+            SplashScreen(
+                onSplashFinished = {
+                    isSplashFinished = true
+                }
             )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Thông tin nền tảng
-            Text(
-                text = "Nền tảng: ${getPlatform().name}",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Trạng thái máy chủ
-            Text(
-                text = serverStatus,
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (serverStatus.contains("Hoạt động")) {
-                    MaterialTheme.colorScheme.primary
-                } else if (serverStatus.contains("Lỗi")) {
-                    MaterialTheme.colorScheme.error
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-            )
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // Button warm-up gửi request thật tới Render
-            Button(
-                onClick = {
-                    if (!isLoading) {
-                        isLoading = true
-                        serverStatus = "Trạng thái máy chủ: Đang kết nối tới Render..."
-                        coroutineScope.launch {
-                            val pingMs = healthApi.warmUpServer()
-                            serverStatus = if (pingMs != null) {
-                                "Trạng thái máy chủ: Máy chủ Hoạt động (Phản hồi: $pingMs ms)"
-                            } else {
-                                "Trạng thái máy chủ: Lỗi kết nối / Server đang thức dậy"
-                            }
-                            isLoading = false
-                        }
-                    }
-                },
-                enabled = !isLoading,
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
+        } else {
+            MaterialTheme {
+                Column(
+                    modifier = Modifier
+                        .background(MaterialTheme.colorScheme.background)
+                        .safeContentPadding()
+                        .fillMaxSize()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
                 ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimary,
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = "Đang kết nối tới Render...")
-                    } else {
-                        Text(text = "Kiểm tra máy chủ (Warm-up)")
+                    // Tiêu đề ứng dụng
+                    Text(
+                        text = "managerShop POS",
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    // Thông tin nền tảng
+                    Text(
+                        text = "Nền tảng: ${getPlatform().name}",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Trạng thái máy chủ
+                    Text(
+                        text = serverStatus,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (serverStatus.contains("Hoạt động")) {
+                            MaterialTheme.colorScheme.primary
+                        } else if (serverStatus.contains("Lỗi")) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    )
+
+                    Spacer(modifier = Modifier.height(32.dp))
+
+                    // Button warm-up gửi request thật tới Render
+                    Button(
+                        onClick = {
+                            if (!isLoading) {
+                                isLoading = true
+                                serverStatus = "Trạng thái máy chủ: Đang kết nối tới Render..."
+                                coroutineScope.launch {
+                                    val pingMs = healthApi.warmUpServer()
+                                    serverStatus = if (pingMs != null) {
+                                        "Trạng thái máy chủ: Máy chủ Hoạt động (Phản hồi: $pingMs ms)"
+                                    } else {
+                                        "Trạng thái máy chủ: Lỗi kết nối / Server đang thức dậy"
+                                    }
+                                    isLoading = false
+                                }
+                            }
+                        },
+                        enabled = !isLoading,
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            if (isLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(text = "Đang kết nối tới Render...")
+                            } else {
+                                Text(text = "Kiểm tra máy chủ (Warm-up)")
+                            }
+                        }
                     }
                 }
             }

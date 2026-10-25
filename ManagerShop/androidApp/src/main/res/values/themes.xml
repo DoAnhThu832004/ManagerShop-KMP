@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Theme khởi động chống chớp trắng, đồng bộ mã màu tím thương hiệu #5434EC -->
+    <style name="Theme.Shop.Starting" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">#5434EC</item>
+        <item name="android:statusBarColor">#5434EC</item>
+        <item name="android:navigationBarColor">#5434EC</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>
