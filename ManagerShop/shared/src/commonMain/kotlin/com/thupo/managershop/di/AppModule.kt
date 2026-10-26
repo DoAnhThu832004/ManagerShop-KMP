@@ -3,6 +3,9 @@ package com.thupo.managershop.di
 
 import com.thupo.managershop.core.AppDispatchers
 import com.thupo.managershop.core.DefaultAppDispatchers
+import com.thupo.managershop.data.repository.AuthRepositoryImpl
+import com.thupo.managershop.domain.repository.AuthRepository
+import com.thupo.managershop.presentation.auth.AuthViewModel
 import org.koin.dsl.module
 
 /**
@@ -17,4 +20,14 @@ val appModule = module {
 
     // --- Core ---
     single<AppDispatchers> { DefaultAppDispatchers() }
+
+    // --- Auth Module ---
+    single<AuthRepository> {
+        AuthRepositoryImpl(
+            authApi = get(),
+            tokenManager = get(),
+            dispatchers = get(),
+        )
+    }
+    factory { AuthViewModel(authRepository = get()) }
 }

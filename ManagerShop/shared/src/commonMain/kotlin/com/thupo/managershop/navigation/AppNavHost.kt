@@ -9,9 +9,13 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.thupo.managershop.presentation.auth.AuthViewModel
+import com.thupo.managershop.presentation.auth.LoginScreen
+import com.thupo.managershop.presentation.auth.RegisterScreen
 import com.thupo.managershop.presentation.main.MainScreen
 import com.thupo.managershop.presentation.onboarding.FashionOnboardingScreen
 import com.thupo.managershop.presentation.splash.SplashScreen
+import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun AppNavHost(
@@ -22,10 +26,10 @@ fun AppNavHost(
         navController = navController,
         startDestination = Screen.Splash,
         modifier = modifier,
-        enterTransition = { fadeIn(animationSpec = tween(500)) },
-        exitTransition = { fadeOut(animationSpec = tween(500)) },
-        popEnterTransition = { fadeIn(animationSpec = tween(500)) },
-        popExitTransition = { fadeOut(animationSpec = tween(500)) }
+        enterTransition = { fadeIn(animationSpec = tween(400)) },
+        exitTransition = { fadeOut(animationSpec = tween(400)) },
+        popEnterTransition = { fadeIn(animationSpec = tween(400)) },
+        popExitTransition = { fadeOut(animationSpec = tween(400)) }
     ) {
         composable<Screen.Splash> {
             SplashScreen(
@@ -40,14 +44,50 @@ fun AppNavHost(
         composable<Screen.Onboarding> {
             FashionOnboardingScreen(
                 onLoginClick = {
-                    navController.navigate(Screen.Main) {
-                        popUpTo<Screen.Onboarding> { inclusive = true }
-                    }
+                    navController.navigate(Screen.Login)
                 },
                 onDemoClick = {
                     navController.navigate(Screen.Main) {
                         popUpTo<Screen.Onboarding> { inclusive = true }
                     }
+                }
+            )
+        }
+
+        composable<Screen.Login> {
+            val authViewModel: AuthViewModel = koinViewModel()
+            LoginScreen(
+                viewModel = authViewModel,
+                onLoginSuccess = {
+                    navController.navigate(Screen.Main) {
+                        popUpTo<Screen.Onboarding> { inclusive = true }
+                    }
+                },
+                onNavigateToRegister = {
+                    navController.navigate(Screen.Register)
+                },
+                onBackClick = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        composable<Screen.Register> {
+            val authViewModel: AuthViewModel = koinViewModel()
+            RegisterScreen(
+                viewModel = authViewModel,
+                onRegisterSuccess = {
+                    navController.navigate(Screen.Login) {
+                        popUpTo<Screen.Register> { inclusive = true }
+                    }
+                },
+                onNavigateToLogin = {
+                    navController.navigate(Screen.Login) {
+                        popUpTo<Screen.Register> { inclusive = true }
+                    }
+                },
+                onBackClick = {
+                    navController.popBackStack()
                 }
             )
         }

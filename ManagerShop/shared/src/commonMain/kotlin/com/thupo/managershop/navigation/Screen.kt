@@ -13,5 +13,11 @@ sealed interface Screen {
     data object Onboarding : Screen
 
     @Serializable
+    data object Login : Screen
+
+    @Serializable
+    data object Register : Screen
+
+    @Serializable
     data object Main : Screen
 }
