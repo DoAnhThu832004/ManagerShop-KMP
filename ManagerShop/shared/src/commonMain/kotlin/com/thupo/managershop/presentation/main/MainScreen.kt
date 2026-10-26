@@ -29,17 +29,57 @@ import androidx.compose.ui.unit.sp
 import com.thupo.getPlatform
 import com.thupo.managershop.data.remote.api.HealthApi
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
 
+/**
+ * Stateful container cho màn hình chính (Main POS).
+ * Chịu trách nhiệm tương tác với Koin DI [HealthApi] và Coroutines.
+ */
 @Composable
 fun MainScreen(
     healthApi: HealthApi = koinInject(),
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val coroutineScope = rememberCoroutineScope()
     var serverStatus by remember { mutableStateOf("Trạng thái máy chủ: Chưa kết nối") }
     var isLoading by remember { mutableStateOf(false) }
 
+    MainContent(
+        platformName = getPlatform().name,
+        serverStatus = serverStatus,
+        isLoading = isLoading,
+        onWarmUpClick = {
+            if (!isLoading) {
+                isLoading = true
+                serverStatus = "Trạng thái máy chủ: Đang kết nối tới Render..."
+                coroutineScope.launch {
+                    val pingMs = healthApi.warmUpServer()
+                    serverStatus = if (pingMs != null) {
+                        "Trạng thái máy chủ: Máy chủ Hoạt động (Phản hồi: $pingMs ms)"
+                    } else {
+                        "Trạng thái máy chủ: Lỗi kết nối / Server đang thức dậy"
+                    }
+                    isLoading = false
+                }
+            }
+        },
+        modifier = modifier,
+    )
+}
+
+/**
+ * Stateless UI cho màn hình chính.
+ * Không phụ thuộc vào Koin hay Network API, rất dễ dàng test và preview.
+ */
+@Composable
+fun MainContent(
+    platformName: String,
+    serverStatus: String,
+    isLoading: Boolean,
+    onWarmUpClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Column(
         modifier = modifier
             .background(MaterialTheme.colorScheme.background)
@@ -61,7 +101,7 @@ fun MainScreen(
 
         // Thông tin nền tảng
         Text(
-            text = "Nền tảng: ${getPlatform().name}",
+            text = "Nền tảng: $platformName",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onBackground,
         )
@@ -72,12 +112,10 @@ fun MainScreen(
         Text(
             text = serverStatus,
             style = MaterialTheme.typography.bodyMedium,
-            color = if (serverStatus.contains("Hoạt động")) {
-                MaterialTheme.colorScheme.primary
-            } else if (serverStatus.contains("Lỗi")) {
-                MaterialTheme.colorScheme.error
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
+            color = when {
+                serverStatus.contains("Hoạt động") -> MaterialTheme.colorScheme.primary
+                serverStatus.contains("Lỗi") -> MaterialTheme.colorScheme.error
+                else -> MaterialTheme.colorScheme.onSurfaceVariant
             },
         )
 
@@ -85,21 +123,7 @@ fun MainScreen(
 
         // Button warm-up gửi request thật tới Render
         Button(
-            onClick = {
-                if (!isLoading) {
-                    isLoading = true
-                    serverStatus = "Trạng thái máy chủ: Đang kết nối tới Render..."
-                    coroutineScope.launch {
-                        val pingMs = healthApi.warmUpServer()
-                        serverStatus = if (pingMs != null) {
-                            "Trạng thái máy chủ: Máy chủ Hoạt động (Phản hồi: $pingMs ms)"
-                        } else {
-                            "Trạng thái máy chủ: Lỗi kết nối / Server đang thức dậy"
-                        }
-                        isLoading = false
-                    }
-                }
-            },
+            onClick = onWarmUpClick,
             enabled = !isLoading,
         ) {
             Row(
@@ -118,5 +142,48 @@ fun MainScreen(
                 }
             }
         }
+    }
+}
+
+// ==========================================
+// PREVIEWS
+// ==========================================
+
+@Preview
+@Composable
+private fun MainContentPreview() {
+    MaterialTheme {
+        MainContent(
+            platformName = "Desktop (JVM)",
+            serverStatus = "Trạng thái máy chủ: Chưa kết nối",
+            isLoading = false,
+            onWarmUpClick = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun MainContentLoadingPreview() {
+    MaterialTheme {
+        MainContent(
+            platformName = "Android",
+            serverStatus = "Trạng thái máy chủ: Đang kết nối tới Render...",
+            isLoading = true,
+            onWarmUpClick = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun MainContentOnlinePreview() {
+    MaterialTheme {
+        MainContent(
+            platformName = "Android",
+            serverStatus = "Trạng thái máy chủ: Máy chủ Hoạt động (Phản hồi: 245 ms)",
+            isLoading = false,
+            onWarmUpClick = {},
+        )
     }
 }

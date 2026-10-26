@@ -193,6 +193,7 @@ object HttpClientFactory {
                 sendWithoutRequest { request ->
                     val path = request.url.encodedPath.trimEnd('/')
                     val isPublic = path.endsWith("auth/login") ||
+                            path.endsWith("auth/register") ||
                             path.endsWith("auth/refresh") ||
                             path.endsWith("auth/forgot-password") ||
                             path.endsWith("auth/reset-password") ||

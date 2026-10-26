@@ -35,16 +35,21 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 // Bảng màu nhận diện thương hiệu chuẩn Shop
 val ShopPurple = Color(0xFF5434EC)
 val ShopPurpleLight = Color(0xFF6849FC)
 val ShopPurpleDark = Color(0xFF3B1CBF)
 
+/**
+ * Stateful container cho màn hình Splash.
+ * Quản lý chuỗi thời gian animation và báo hiệu khi hoàn thành.
+ */
 @Composable
 fun SplashScreen(
     modifier: Modifier = Modifier,
-    onSplashFinished: () -> Unit = {}
+    onSplashFinished: () -> Unit = {},
 ) {
     // 1. Chuyển động vào của chữ "thup" (Slanted Speed)
     val thupAlpha = remember { Animatable(0f) }
@@ -83,8 +88,8 @@ fun SplashScreen(
                 targetValue = 0f,
                 animationSpec = spring(
                     dampingRatio = 0.65f,
-                    stiffness = Spring.StiffnessLow
-                )
+                    stiffness = Spring.StiffnessLow,
+                ),
             )
         }
         launch {
@@ -92,8 +97,8 @@ fun SplashScreen(
                 targetValue = 1f,
                 animationSpec = spring(
                     dampingRatio = 0.65f,
-                    stiffness = Spring.StiffnessLow
-                )
+                    stiffness = Spring.StiffnessLow,
+                ),
             )
         }
 
@@ -126,6 +131,39 @@ fun SplashScreen(
         onSplashFinished()
     }
 
+    SplashContent(
+        thupAlpha = thupAlpha.value,
+        thupOffsetX = thupOffsetX.value,
+        swirlScale = swirlScale.value,
+        swirlRotation = swirlRotation.value,
+        swirlAlpha = swirlAlpha.value,
+        shockwaveScale = shockwaveScale.value,
+        shockwaveAlpha = shockwaveAlpha.value,
+        sparkleScale = sparkleScale.value,
+        sparkleRotation = sparkleRotation.value,
+        sparkleAlpha = sparkleAlpha.value,
+        modifier = modifier,
+    )
+}
+
+/**
+ * Stateless UI cho màn hình Splash.
+ * Nhận các thông số hoạt ảnh từ bên ngoài, dễ dàng hiển thị trong Preview mà không cần chạy effect.
+ */
+@Composable
+fun SplashContent(
+    thupAlpha: Float,
+    thupOffsetX: Float,
+    swirlScale: Float,
+    swirlRotation: Float,
+    swirlAlpha: Float,
+    shockwaveScale: Float,
+    shockwaveAlpha: Float,
+    sparkleScale: Float,
+    sparkleRotation: Float,
+    sparkleAlpha: Float,
+    modifier: Modifier = Modifier,
+) {
     // Nền Radial Spotlight đa lớp tạo chiều sâu không gian sân khấu
     Box(
         modifier = modifier
@@ -135,16 +173,16 @@ fun SplashScreen(
                     colors = listOf(
                         ShopPurpleLight,
                         ShopPurple,
-                        ShopPurpleDark
+                        ShopPurpleDark,
                     ),
-                    radius = 1200f
-                )
+                    radius = 1200f,
+                ),
             ),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.Center,
     ) {
         // Logo Container
         Row(
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             // Chữ "thup" phong cách Kiểu 4: Slanted Speed (Nghiêng 12° thể thao)
             Text(
@@ -154,11 +192,10 @@ fun SplashScreen(
                 fontStyle = FontStyle.Italic,
                 letterSpacing = (-2).sp,
                 color = Color.White,
-                modifier = Modifier
-                    .graphicsLayer {
-                        translationX = thupOffsetX.value
-                        alpha = thupAlpha.value
-                    }
+                modifier = Modifier.graphicsLayer {
+                    translationX = thupOffsetX
+                    alpha = thupAlpha
+                },
             )
 
             // Khu vực chứa chữ 'o' xoắn ốc + Shockwave + Sparkle
@@ -169,15 +206,15 @@ fun SplashScreen(
                     .graphicsLayer {
                         // Nghiêng nhẹ chữ 'o' đồng bộ với góc nghiêng chữ thup
                         rotationZ = -10f
-                    }
+                    },
             ) {
                 // Vòng sóng năng lượng Shockwave Ring
                 Box(
                     modifier = Modifier
                         .size(42.dp)
-                        .scale(shockwaveScale.value)
-                        .alpha(shockwaveAlpha.value)
-                        .border(width = 2.dp, color = Color.White, shape = CircleShape)
+                        .scale(shockwaveScale)
+                        .alpha(shockwaveAlpha)
+                        .border(width = 2.dp, color = Color.White, shape = CircleShape),
                 )
 
                 // Biểu tượng chữ 'o' Swirl Loop dạng 3D Ribbon chuyển sắc
@@ -185,11 +222,11 @@ fun SplashScreen(
                     modifier = Modifier
                         .size(41.dp)
                         .graphicsLayer {
-                            scaleX = swirlScale.value
-                            scaleY = swirlScale.value
-                            rotationZ = swirlRotation.value
-                            alpha = swirlAlpha.value
-                        }
+                            scaleX = swirlScale
+                            scaleY = swirlScale
+                            rotationZ = swirlRotation
+                            alpha = swirlAlpha
+                        },
                 )
 
                 // Ngôi sao lấp lánh (Sparkle Star ✨) lóe sáng ở góc trên chữ 'o'
@@ -199,11 +236,11 @@ fun SplashScreen(
                         .offset(x = 8.dp, y = (-8).dp)
                         .size(20.dp)
                         .graphicsLayer {
-                            scaleX = sparkleScale.value
-                            scaleY = sparkleScale.value
-                            rotationZ = sparkleRotation.value
-                            alpha = sparkleAlpha.value
-                        }
+                            scaleX = sparkleScale
+                            scaleY = sparkleScale
+                            rotationZ = sparkleRotation
+                            alpha = sparkleAlpha
+                        },
                 )
             }
         }
@@ -214,10 +251,10 @@ fun SplashScreen(
  * Vẽ chữ 'o' dạng dải xoắn ốc (Shop Swirl Loop) bằng Canvas Vector chuẩn xác
  */
 @Composable
-private fun SwirlIcon(modifier: Modifier = Modifier) {
+fun SwirlIcon(modifier: Modifier = Modifier) {
     val swirlPath = remember {
         PathParser().parsePathString(
-            "M50 12C29.0132 12 12 29.0132 12 50C12 70.9868 29.0132 88 50 88C70.9868 88 88 70.9868 88 50C88 38.5 82.5 28.5 74 22L62 34C66.5 38 69.5 43.5 69.5 50C69.5 60.8 60.8 69.5 50 69.5C39.2 69.5 30.5 60.8 30.5 50C30.5 39.2 39.2 30.5 50 30.5C54.2 30.5 58 31.8 61 34L71 22C65 16 58 12 50 12Z"
+            "M50 12C29.0132 12 12 29.0132 12 50C12 70.9868 29.0132 88 50 88C70.9868 88 88 70.9868 88 50C88 38.5 82.5 28.5 74 22L62 34C66.5 38 69.5 43.5 69.5 50C69.5 60.8 60.8 69.5 50 69.5C39.2 69.5 30.5 60.8 30.5 50C30.5 39.2 39.2 30.5 50 30.5C54.2 30.5 58 31.8 61 34L71 22C65 16 58 12 50 12Z",
         ).toPath()
     }
 
@@ -227,8 +264,8 @@ private fun SwirlIcon(modifier: Modifier = Modifier) {
             colors = listOf(
                 Color.White,
                 Color(0xFFEDE9FE),
-                Color(0xFFDDD6FE)
-            )
+                Color(0xFFDDD6FE),
+            ),
         )
     }
 
@@ -238,7 +275,7 @@ private fun SwirlIcon(modifier: Modifier = Modifier) {
         scale(scaleX, scaleY, pivot = androidx.compose.ui.geometry.Offset.Zero) {
             drawPath(
                 path = swirlPath,
-                brush = ribbonBrush
+                brush = ribbonBrush,
             )
         }
     }
@@ -248,10 +285,10 @@ private fun SwirlIcon(modifier: Modifier = Modifier) {
  * Vẽ ngôi sao 4 cánh phát sáng lấp lánh (Sparkle Star)
  */
 @Composable
-private fun SparkleStar(modifier: Modifier = Modifier) {
+fun SparkleStar(modifier: Modifier = Modifier) {
     val starPath = remember {
         PathParser().parsePathString(
-            "M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"
+            "M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z",
         ).toPath()
     }
 
@@ -261,8 +298,29 @@ private fun SparkleStar(modifier: Modifier = Modifier) {
         scale(scaleX, scaleY, pivot = androidx.compose.ui.geometry.Offset.Zero) {
             drawPath(
                 path = starPath,
-                brush = SolidColor(Color.White)
+                brush = SolidColor(Color.White),
             )
         }
     }
+}
+
+// ==========================================
+// PREVIEWS
+// ==========================================
+
+@Preview
+@Composable
+private fun SplashContentPreview() {
+    SplashContent(
+        thupAlpha = 1f,
+        thupOffsetX = 0f,
+        swirlScale = 1f,
+        swirlRotation = 0f,
+        swirlAlpha = 1f,
+        shockwaveScale = 1f,
+        shockwaveAlpha = 0.5f,
+        sparkleScale = 1f,
+        sparkleRotation = 45f,
+        sparkleAlpha = 1f,
+    )
 }

@@ -7,6 +7,7 @@ import com.thupo.getPlatform
 import com.thupo.managershop.core.AppError
 import com.thupo.managershop.core.Resource
 import com.thupo.managershop.domain.repository.AuthRepository
+import com.thupo.managershop.domain.usecase.ValidatePasswordUseCase
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,6 +39,7 @@ data class RegisterUiState(
 
 class AuthViewModel(
     private val authRepository: AuthRepository,
+    private val validatePasswordUseCase: ValidatePasswordUseCase = ValidatePasswordUseCase(),
 ) : ViewModel() {
 
     private val _loginState = MutableStateFlow(LoginUiState())
@@ -194,12 +196,7 @@ class AuthViewModel(
      * Xác thực mật khẩu theo đúng chính sách bảo mật của backend (PasswordPolicyValidator).
      */
     fun validatePasswordPolicy(password: String): String? {
-        if (password.length < 8) return "Mật khẩu phải có tối thiểu 8 ký tự"
-        if (password.length > 128) return "Mật khẩu không được vượt quá 128 ký tự"
-        if (!password.any { it.isUpperCase() }) return "Mật khẩu phải chứa ít nhất 1 chữ in hoa (A-Z)"
-        if (!password.any { it.isLowerCase() }) return "Mật khẩu phải chứa ít nhất 1 chữ in thường (a-z)"
-        if (!password.any { it.isDigit() }) return "Mật khẩu phải chứa ít nhất 1 chữ số (0-9)"
-        return null
+        return validatePasswordUseCase(password).errorMessage
     }
 
     fun register(onSuccess: () -> Unit) {
@@ -212,9 +209,9 @@ class AuthViewModel(
             _registerState.update { it.copy(errorMessage = "Vui lòng nhập email hoặc số điện thoại") }
             return
         }
-        val policyError = validatePasswordPolicy(state.password)
-        if (policyError != null) {
-            _registerState.update { it.copy(errorMessage = policyError) }
+        val policyResult = validatePasswordUseCase(state.password)
+        if (!policyResult.isValid) {
+            _registerState.update { it.copy(errorMessage = policyResult.errorMessage) }
             return
         }
         if (state.password != state.confirmPassword) {
@@ -239,10 +236,18 @@ class AuthViewModel(
                 }
 
                 is Resource.Error -> {
+                    val msg = when (val err = result.appError) {
+                        is AppError.PasswordPolicy -> err.message
+                        is AppError.RateLimited -> err.message
+                        is AppError.Network -> "Không thể kết nối máy chủ, vui lòng kiểm tra kết nối mạng"
+                        is AppError.Server -> "Lỗi máy chủ (HTTP ${err.status}), vui lòng thử lại sau"
+                        is AppError.Unknown -> err.message.ifBlank { "Đăng ký không thành công, vui lòng thử lại" }
+                        else -> "Đăng ký không thành công, vui lòng thử lại"
+                    }
                     _registerState.update {
                         it.copy(
                             isLoading = false,
-                            errorMessage = "Đăng ký không thành công, vui lòng thử lại",
+                            errorMessage = msg,
                         )
                     }
                 }

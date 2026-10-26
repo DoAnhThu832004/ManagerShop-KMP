@@ -1,9 +1,10 @@
-// shared/src/commonMain/kotlin/com/thupo/managershop/presentation/auth/components/ShopAuthComponents.kt
 package com.thupo.managershop.presentation.auth.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -36,33 +37,46 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.vector.PathParser
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import managershop.shared.generated.resources.Res
+import managershop.shared.generated.resources.ic_eye
+import managershop.shared.generated.resources.ic_uneye
+import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
-// Bảng màu nhận diện Shop
 val ShopPurple = Color(0xFF5434EC)
 val ShopPurpleLight = Color(0xFF7C3AED)
 val ShopPurpleDark = Color(0xFF3B1CBF)
 val ShopBackground = Color.White
 val ShopPillBg = Color(0xFFF1F5F9)
 val ShopBorderColor = Color(0xFFCBD5E1)
+private val ErrorColor = Color(0xFFEF4444)
+private val PillShape = RoundedCornerShape(50)
+private val LabelColor = Color(0xFF334155)
+private val InputTextColor = Color(0xFF0F172A)
+private val PlaceholderColor = Color(0xFF94A3B8)
+private val ToggleNormalColor = Color(0xFF64748B)
 
-/**
- * Ô nhập liệu hình viên thuốc (Pill TextField) đồng bộ 100% giữa Login và Register.
- * Chiều cao 48dp, nhãn bên trên, nền xám chống mỏi mắt và viền bo cong hoàn toàn.
- */
 @Composable
 fun ShopPillTextField(
     label: String,
@@ -70,128 +84,178 @@ fun ShopPillTextField(
     onValueChange: (String) -> Unit,
     placeholder: String,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
     isPassword: Boolean = false,
     errorMessage: String? = null,
-    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
-    keyboardActions: KeyboardActions = KeyboardActions.Default,
+    keyboardType: KeyboardType = if (isPassword) KeyboardType.Password else KeyboardType.Text,
+    imeAction: ImeAction = ImeAction.Next,
+    onImeAction: () -> Unit = {},
+    keyboardOptions: KeyboardOptions = KeyboardOptions(
+        capitalization = KeyboardCapitalization.None,
+        autoCorrectEnabled = !isPassword && keyboardType != KeyboardType.Email,
+        keyboardType = keyboardType,
+        imeAction = imeAction,
+    ),
+    keyboardActions: KeyboardActions? = null,
 ) {
+    val focusManager = LocalFocusManager.current
     var isFocused by remember { mutableStateOf(false) }
     var isPasswordVisible by remember { mutableStateOf(false) }
 
-    Column(modifier = modifier.fillMaxWidth()) {
-        // Nhãn tiêu đề bên trên, thụt lề 16dp để thẳng hàng với đường cong
+    var lastErrorMessage by remember { mutableStateOf(errorMessage) }
+    if (errorMessage != null) {
+        lastErrorMessage = errorMessage
+    }
+
+    val resolvedKeyboardActions = keyboardActions ?: remember(focusManager, onImeAction) {
+        KeyboardActions(
+            onNext = {
+                focusManager.moveFocus(FocusDirection.Down)
+                onImeAction()
+            },
+            onDone = {
+                focusManager.clearFocus()
+                onImeAction()
+            },
+            onGo = {
+                focusManager.clearFocus()
+                onImeAction()
+            },
+            onSearch = {
+                focusManager.clearFocus()
+                onImeAction()
+            },
+        )
+    }
+
+    val borderColor = when {
+        !errorMessage.isNullOrBlank() -> ErrorColor
+        isFocused -> ShopPurple
+        else -> ShopBorderColor
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .alpha(if (enabled) 1f else 0.6f),
+    ) {
         Text(
             text = label,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFF334155),
+            color = LabelColor,
             modifier = Modifier.padding(start = 16.dp, bottom = 4.dp),
         )
 
-        // Khung nhập viên thuốc cao 48dp
-        val borderColor = when {
-            errorMessage != null -> Color(0xFFEF4444)
-            isFocused -> ShopPurple
-            else -> ShopBorderColor
-        }
-
-        Box(
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            enabled = enabled,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp)
-                .clip(RoundedCornerShape(9999.dp))
-                .background(ShopPillBg)
-                .border(
-                    width = if (isFocused) 1.5.dp else 1.dp,
-                    color = borderColor,
-                    shape = RoundedCornerShape(9999.dp),
-                )
-                .padding(horizontal = 18.dp),
-            contentAlignment = Alignment.CenterStart,
-        ) {
-            Row(
-                modifier = Modifier.fillMaxSize(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
+                .onFocusChanged { isFocused = it.isFocused },
+            singleLine = true,
+            textStyle = TextStyle(
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                color = InputTextColor,
+            ),
+            cursorBrush = SolidColor(ShopPurple),
+            visualTransformation = if (isPassword && !isPasswordVisible) {
+                PasswordVisualTransformation()
+            } else {
+                VisualTransformation.None
+            },
+            keyboardOptions = keyboardOptions,
+            keyboardActions = resolvedKeyboardActions,
+            decorationBox = { innerTextField ->
                 Box(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .clip(PillShape)
+                        .background(ShopPillBg)
+                        .border(
+                            width = if (isFocused) 1.5.dp else 1.dp,
+                            color = borderColor,
+                            shape = PillShape,
+                        )
+                        .padding(horizontal = 18.dp),
                     contentAlignment = Alignment.CenterStart,
                 ) {
-                    if (value.isEmpty()) {
-                        Text(
-                            text = placeholder,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Color(0xFF94A3B8),
-                        )
-                    }
-
-                    BasicTextField(
-                        value = value,
-                        onValueChange = onValueChange,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .onFocusChanged { isFocused = it.isFocused },
-                        singleLine = true,
-                        textStyle = TextStyle(
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Color(0xFF0F172A),
-                        ),
-                        cursorBrush = SolidColor(ShopPurple),
-                        visualTransformation = if (isPassword && !isPasswordVisible) {
-                            PasswordVisualTransformation()
-                        } else {
-                            VisualTransformation.None
-                        },
-                        keyboardOptions = keyboardOptions,
-                        keyboardActions = keyboardActions,
-                    )
-                }
-
-                // Nút ẩn/hiện mật khẩu nếu là trường password
-                if (isPassword) {
-                    Text(
-                        text = if (isPasswordVisible) "Ẩn" else "Hiện",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isFocused) ShopPurple else Color(0xFF64748B),
-                        modifier = Modifier
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                            ) {
-                                isPasswordVisible = !isPasswordVisible
+                    Row(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Box(
+                            modifier = Modifier.weight(1f),
+                            contentAlignment = Alignment.CenterStart,
+                        ) {
+                            if (value.isEmpty()) {
+                                Text(
+                                    text = placeholder,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = PlaceholderColor,
+                                    maxLines = 1,
+                                )
                             }
-                            .padding(start = 8.dp),
-                    )
+                            innerTextField()
+                        }
+                        if (isPassword) {
+                            Icon(
+                                painter = if (isPasswordVisible) painterResource(Res.drawable.ic_eye) else painterResource(Res.drawable.ic_uneye),
+                                contentDescription = if (isPasswordVisible) "Ẩn mật khẩu" else "Hiện mật khẩu",
+                                tint = if (isFocused) ShopPurple else ToggleNormalColor,
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clickable(
+                                        enabled = enabled,
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                    ) {
+                                        isPasswordVisible = !isPasswordVisible
+                                    }
+                            )
+//                            Text(
+//                                text = if (isPasswordVisible) "Ẩn" else "Hiện",
+//                                fontSize = 12.sp,
+//                                fontWeight = FontWeight.Bold,
+//                                color = if (isFocused) ShopPurple else ToggleNormalColor,
+//                                modifier = Modifier
+//                                    .padding(start = 8.dp)
+//                                    .clickable(
+//                                        enabled = enabled,
+//                                        interactionSource = remember { MutableInteractionSource() },
+//                                        indication = null,
+//                                    ) {
+//                                        isPasswordVisible = !isPasswordVisible
+//                                    }
+//                                    .padding(vertical = 4.dp, horizontal = 4.dp),
+//                            )
+                        }
+                    }
                 }
-            }
-        }
+            },
+        )
 
-        // Báo lỗi bên dưới ô nhập
         AnimatedVisibility(
-            visible = errorMessage != null,
-            enter = fadeIn(),
-            exit = fadeOut(),
+            visible = !errorMessage.isNullOrBlank(),
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut(),
         ) {
-            if (errorMessage != null) {
-                Text(
-                    text = errorMessage,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color(0xFFEF4444),
-                    modifier = Modifier.padding(start = 16.dp, top = 3.dp),
-                )
-            }
+            Text(
+                text = lastErrorMessage.orEmpty(),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                color = ErrorColor,
+                modifier = Modifier.padding(start = 16.dp, top = 3.dp),
+            )
         }
     }
 }
 
-/**
- * Nút bấm chính màu tím điện quang #5434EC dạng viên thuốc.
- */
 @Composable
 fun ShopPrimaryButton(
     text: String,
@@ -247,9 +311,6 @@ fun ShopPrimaryButton(
     }
 }
 
-/**
- * Thanh Top Bar phong cách Shop App với nút tròn đóng/lùi và tên miền.
- */
 @Composable
 fun ShopTopBar(
     onBackClick: () -> Unit,
@@ -263,7 +324,6 @@ fun ShopTopBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        // Nút lùi tròn (Circle)
         Box(
             modifier = Modifier
                 .size(38.dp)
@@ -281,27 +341,25 @@ fun ShopTopBar(
             )
         }
 
-        // Tên miền ở giữa với chấm xanh hoạt động
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(7.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF10B981)),
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = domain,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF1E293B),
-            )
-        }
-
-        // Nút tuỳ chọn/trợ giúp
+//        // Tên miền ở giữa với chấm xanh hoạt động
+//        Row(
+//            verticalAlignment = Alignment.CenterVertically,
+//            horizontalArrangement = Arrangement.Center,
+//        ) {
+//            Box(
+//                modifier = Modifier
+//                    .size(7.dp)
+//                    .clip(CircleShape)
+//                    .background(Color(0xFF10B981)),
+//            )
+//            Spacer(modifier = Modifier.width(6.dp))
+//            Text(
+//                text = domain,
+//                fontSize = 13.sp,
+//                fontWeight = FontWeight.Bold,
+//                color = Color(0xFF1E293B),
+//            )
+//        }
         Box(
             modifier = Modifier
                 .size(38.dp)
@@ -311,8 +369,8 @@ fun ShopTopBar(
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = "POS",
-                fontSize = 10.sp,
+                text = "?",
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Black,
                 color = ShopPurple,
             )
@@ -320,9 +378,6 @@ fun ShopTopBar(
     }
 }
 
-/**
- * Logo khuyên tròn Gradient chuyển sắc tím - xanh đặc trưng của Shop App.
- */
 @Composable
 fun ShopBrandLogo(modifier: Modifier = Modifier) {
     val swirlPath = remember {
@@ -355,5 +410,101 @@ fun ShopBrandLogo(modifier: Modifier = Modifier) {
                 )
             }
         }
+    }
+}
+
+@Composable
+fun AuthErrorBanner(
+    errorMessage: String,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xFFFEF2F2))
+            .border(1.dp, Color(0xFFFECACA), RoundedCornerShape(16.dp))
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+    ) {
+        Text(
+            text = errorMessage,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = Color(0xFFDC2626),
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+
+@Preview
+@Composable
+private fun ShopTopBarPreview() {
+    ShopTopBar(onBackClick = {})
+}
+
+@Preview
+@Composable
+private fun ShopBrandLogoPreview() {
+    ShopBrandLogo()
+}
+
+@Preview
+@Composable
+private fun ShopPillTextFieldPreview() {
+    Column(modifier = Modifier.padding(16.dp)) {
+        ShopPillTextField(
+            label = "Email hoặc Số điện thoại",
+            value = "admin@managershop.com",
+            onValueChange = {},
+            placeholder = "Nhập email",
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun ShopPillTextFieldErrorPreview() {
+    Column(modifier = Modifier.padding(16.dp)) {
+        ShopPillTextField(
+            label = "Mật khẩu",
+            value = "123",
+            onValueChange = {},
+            placeholder = "Nhập mật khẩu",
+            isPassword = true,
+            errorMessage = "Mật khẩu phải có tối thiểu 8 ký tự",
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun ShopPrimaryButtonPreview() {
+    Column(modifier = Modifier.padding(16.dp)) {
+        ShopPrimaryButton(
+            text = "Tiếp tục",
+            onClick = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun ShopPrimaryButtonLoadingPreview() {
+    Column(modifier = Modifier.padding(16.dp)) {
+        ShopPrimaryButton(
+            text = "Tiếp tục",
+            onClick = {},
+            isLoading = true,
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun AuthErrorBannerPreview() {
+    Column(modifier = Modifier.padding(16.dp)) {
+        AuthErrorBanner(errorMessage = "Tên đăng nhập hoặc mật khẩu không chính xác")
     }
 }

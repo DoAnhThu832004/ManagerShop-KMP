@@ -8,8 +8,8 @@ import com.thupo.managershop.data.local.TokenManager
 import com.thupo.managershop.data.remote.api.AuthApi
 import com.thupo.managershop.data.remote.dto.LoginRequestDto
 import com.thupo.managershop.data.remote.dto.LoginResponseDto
+import com.thupo.managershop.data.remote.dto.RegisterRequestDto
 import com.thupo.managershop.domain.repository.AuthRepository
-import kotlinx.coroutines.delay
 
 class AuthRepositoryImpl(
     private val authApi: AuthApi,
@@ -47,10 +47,20 @@ class AuthRepositoryImpl(
         identifier: String,
         password: String,
     ): Resource<Unit> {
-        // Giả lập độ trễ xử lý đăng ký trước khi backend mở rộng endpoint POST /register công khai
-        return safeApiCall(dispatchers.io) {
-            delay(800L)
-            Unit
+        val request = RegisterRequestDto(
+            fullName = shopName.trim(),
+            identifier = identifier.trim(),
+            password = password,
+        )
+
+        val result = safeApiCall(dispatchers.io) {
+            authApi.register(request)
+        }
+
+        return when (result) {
+            is Resource.Success -> Resource.Success(Unit)
+            is Resource.Error -> Resource.Error(result.appError)
+            is Resource.Loading -> Resource.Loading
         }
     }
 }

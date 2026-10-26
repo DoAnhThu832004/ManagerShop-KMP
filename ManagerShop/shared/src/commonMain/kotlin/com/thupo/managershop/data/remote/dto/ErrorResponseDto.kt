@@ -71,6 +71,10 @@ fun ErrorResponseDto.toAppError(): AppError = when (code) {
     "AUTH_PASSWORD_REUSED" ->
         AppError.PasswordReused(message = message)
 
+    // --- Validation Error ---
+    "VALIDATION_ERROR" ->
+        AppError.Unknown(message = message)
+
     // --- Forbidden (403) ---
     "AUTH_FORBIDDEN",
     "ACCESS_DENIED" ->
