@@ -9,6 +9,8 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.thupo.managershop.presentation.auth.AuthFlowScreen
+import com.thupo.managershop.presentation.auth.AuthScreenType
 import com.thupo.managershop.presentation.auth.AuthViewModel
 import com.thupo.managershop.presentation.auth.LoginScreen
 import com.thupo.managershop.presentation.auth.RegisterScreen
@@ -56,17 +58,15 @@ fun AppNavHost(
 
         composable<Screen.Login> {
             val authViewModel: AuthViewModel = koinViewModel()
-            LoginScreen(
+            AuthFlowScreen(
+                initialScreen = AuthScreenType.Login,
                 viewModel = authViewModel,
                 onLoginSuccess = {
                     navController.navigate(Screen.Main) {
                         popUpTo<Screen.Onboarding> { inclusive = true }
                     }
                 },
-                onNavigateToRegister = {
-                    navController.navigate(Screen.Register)
-                },
-                onBackClick = {
+                onBackFromLogin = {
                     navController.popBackStack()
                 }
             )
@@ -74,19 +74,15 @@ fun AppNavHost(
 
         composable<Screen.Register> {
             val authViewModel: AuthViewModel = koinViewModel()
-            RegisterScreen(
+            AuthFlowScreen(
+                initialScreen = AuthScreenType.Register,
                 viewModel = authViewModel,
-                onRegisterSuccess = {
-                    navController.navigate(Screen.Login) {
-                        popUpTo<Screen.Register> { inclusive = true }
+                onLoginSuccess = {
+                    navController.navigate(Screen.Main) {
+                        popUpTo<Screen.Onboarding> { inclusive = true }
                     }
                 },
-                onNavigateToLogin = {
-                    navController.navigate(Screen.Login) {
-                        popUpTo<Screen.Register> { inclusive = true }
-                    }
-                },
-                onBackClick = {
+                onBackFromLogin = {
                     navController.popBackStack()
                 }
             )
