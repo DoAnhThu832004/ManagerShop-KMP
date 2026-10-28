@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
@@ -109,5 +110,36 @@ class TokenManager(
             accessToken = newAccessToken,
             refreshToken = currentRefresh,
         )
+    }
+
+    /**
+     * Kiểm tra xem thiết bị có phiên đăng nhập hợp lệ và sẵn sàng bán hàng hay không.
+     *
+     * Điều kiện an toàn chuẩn Production:
+     * 1. Bọc try-catch phòng ngừa ngoại lệ giải mã phần cứng (Android Keystore / JVM Keyring).
+     * 2. Refresh Token tồn tại và không rỗng.
+     * 3. Danh sách Roles không rỗng.
+     * 4. Nghiệp vụ POS: Tài khoản quản trị toàn quyền (ADMIN/OWNER) có thể không gắn chi nhánh cố định,
+     *    nhưng nhân viên thu ngân/bán hàng (CASHIER/STAFF) bắt buộc phải có [branchId] để tránh lỗi 400 API.
+     */
+    suspend fun hasValidSession(): Boolean {
+        return try {
+            val refreshToken = secureStorage.getRefreshToken()
+            if (refreshToken.isNullOrBlank()) return false
+
+            val roles = sessionStore.getUserRoles().first()
+            if (roles.isEmpty()) return false
+
+            val branchInfo = sessionStore.getBranchInfo().first()
+            val hasAdminRole = roles.any {
+                it.contains("ADMIN", ignoreCase = true) || it.contains("OWNER", ignoreCase = true)
+            }
+            val hasValidBranch = branchInfo?.first != null
+
+            hasAdminRole || hasValidBranch
+        } catch (e: Throwable) {
+            // Khi Keystore / MasterKey bị lỗi phần cứng -> coi như phiên không hợp lệ
+            false
+        }
     }
 }

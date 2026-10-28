@@ -3,15 +3,17 @@ package com.thupo.managershop.data.local
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 /**
  * Triển khai [SessionStore] dùng DataStore Preferences Multiplatform.
- * Lưu thông tin phiên KHÔNG nhạy cảm: roles, branchId, branchName.
+ * Lưu thông tin phiên KHÔNG nhạy cảm: roles, branchId, branchName và cờ Onboarding.
  *
  * @param dataStore Instance DataStore<Preferences> được inject qua Koin.
  *                  Phải là singleton (không tạo nhiều instance trên cùng file).
@@ -27,6 +29,7 @@ class DataStoreSessionStore(
         val KEY_ROLES = stringPreferencesKey("session_roles")
         val KEY_BRANCH_ID = longPreferencesKey("session_branch_id")
         val KEY_BRANCH_NAME = stringPreferencesKey("session_branch_name")
+        val KEY_ONBOARDING_COMPLETED = booleanPreferencesKey("has_completed_onboarding")
         const val ROLES_SEPARATOR = ","
     }
 
@@ -51,6 +54,13 @@ class DataStoreSessionStore(
             prefs.remove(KEY_ROLES)
             prefs.remove(KEY_BRANCH_ID)
             prefs.remove(KEY_BRANCH_NAME)
+            // LƯU Ý: Giữ nguyên KEY_ONBOARDING_COMPLETED để không hiển thị lại Onboarding khi đăng xuất
+        }
+    }
+
+    override suspend fun setOnboardingCompleted(completed: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[KEY_ONBOARDING_COMPLETED] = completed
         }
     }
 
@@ -72,4 +82,12 @@ class DataStoreSessionStore(
             if (branchId == null && branchName == null) null
             else Pair(branchId, branchName)
         }
+
+    override fun isOnboardingCompleted(): Flow<Boolean> =
+        dataStore.data.map { prefs ->
+            prefs[KEY_ONBOARDING_COMPLETED] ?: false
+        }
+
+    override suspend fun hasCompletedOnboarding(): Boolean =
+        isOnboardingCompleted().first()
 }

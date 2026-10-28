@@ -57,6 +57,16 @@ class TokenManagerTest {
             rolesState.value = emptyList()
             branchState.value = null
         }
+
+        private val onboardingState = MutableStateFlow(false)
+
+        override suspend fun setOnboardingCompleted(completed: Boolean) {
+            onboardingState.value = completed
+        }
+
+        override fun isOnboardingCompleted(): Flow<Boolean> = onboardingState
+
+        override suspend fun hasCompletedOnboarding(): Boolean = onboardingState.value
     }
 
     // ── Tests ─────────────────────────────────────────────────────────────────
@@ -133,5 +143,40 @@ class TokenManagerTest {
 
         assertEquals("new_access", tokenManager.getAccessToken())
         assertEquals("permanent_refresh", tokenManager.getRefreshToken())
+    }
+
+    @Test
+    fun `hasValidSession returns false when tokens are missing`() = runTest {
+        val testDispatcher = UnconfinedTestDispatcher(testScheduler)
+        val testScope = TestScope(testDispatcher)
+
+        val secureStorage = FakeSecureTokenStorage()
+        val sessionStore = FakeSessionStore()
+        val tokenManager = TokenManager(secureStorage, sessionStore, testScope)
+
+        assertFalse(tokenManager.hasValidSession())
+    }
+
+    @Test
+    fun `hasValidSession returns true when cashier has branch`() = runTest {
+        val testDispatcher = UnconfinedTestDispatcher(testScheduler)
+        val testScope = TestScope(testDispatcher)
+
+        val secureStorage = FakeSecureTokenStorage()
+        val sessionStore = FakeSessionStore()
+        val tokenManager = TokenManager(secureStorage, sessionStore, testScope)
+
+        val loginDto = LoginResponseDto(
+            accessToken = "valid_access",
+            refreshToken = "valid_refresh",
+            tokenType = "Bearer",
+            expiresIn = 3600L,
+            roles = listOf("CASHIER"),
+            branchId = 10L,
+            branchName = "Chi nhánh 1",
+        )
+        tokenManager.saveSession(loginDto)
+
+        assertTrue(tokenManager.hasValidSession())
     }
 }

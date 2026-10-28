@@ -6,6 +6,8 @@ import com.thupo.managershop.core.DefaultAppDispatchers
 import com.thupo.managershop.data.repository.AuthRepositoryImpl
 import com.thupo.managershop.domain.repository.AuthRepository
 import com.thupo.managershop.presentation.auth.AuthViewModel
+import com.thupo.managershop.presentation.splash.SplashViewModel
+import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
 /**
@@ -29,5 +31,6 @@ val appModule = module {
             dispatchers = get(),
         )
     }
-    factory { AuthViewModel(authRepository = get()) }
+    viewModel { AuthViewModel(authRepository = get()) }
+    viewModel { SplashViewModel(sessionStore = get(), tokenManager = get()) }
 }

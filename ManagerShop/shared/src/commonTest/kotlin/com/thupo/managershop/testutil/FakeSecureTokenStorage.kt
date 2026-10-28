@@ -38,10 +38,12 @@ class FakeSecureTokenStorage(
 class FakeSessionStore(
     initialRoles: List<String> = emptyList(),
     initialBranch: Pair<Long?, String?>? = null,
+    initialOnboardingCompleted: Boolean = false,
 ) : SessionStore {
 
     private val rolesState = MutableStateFlow(initialRoles)
     private val branchState = MutableStateFlow(initialBranch)
+    private val onboardingState = MutableStateFlow(initialOnboardingCompleted)
 
     override suspend fun saveUserData(roles: List<String>, branchId: Long?, branchName: String?) {
         rolesState.value = roles
@@ -55,5 +57,14 @@ class FakeSessionStore(
     override suspend fun clearUserData() {
         rolesState.value = emptyList()
         branchState.value = null
+        // Giữ nguyên onboardingState khi đăng xuất
     }
+
+    override suspend fun setOnboardingCompleted(completed: Boolean) {
+        onboardingState.value = completed
+    }
+
+    override fun isOnboardingCompleted(): Flow<Boolean> = onboardingState
+
+    override suspend fun hasCompletedOnboarding(): Boolean = onboardingState.value
 }
