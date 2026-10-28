@@ -166,4 +166,48 @@ class ErrorParsingTest {
         assertIs<AppError.AccountLocked>(result)
         assertEquals(300L, result.retryAfterSeconds)
     }
+
+    /**
+     * Kịch bản: Backend trả 409 AUTH_USER_ALREADY_EXISTS.
+     * Kỳ vọng: [AppError.UserAlreadyExists].
+     */
+    @Test
+    fun `parse 409 AUTH_USER_ALREADY_EXISTS returns UserAlreadyExists`() {
+        val errorJson = """
+            {
+              "timestamp": "2026-10-28T03:16:46Z",
+              "status": 409,
+              "code": "AUTH_USER_ALREADY_EXISTS",
+              "message": "Tên đăng nhập hoặc email đã tồn tại trong hệ thống",
+              "path": "/api/v1/auth/register"
+            }
+        """.trimIndent()
+
+        val result = parseError(errorJson)
+
+        assertIs<AppError.UserAlreadyExists>(result)
+        assertEquals("Tên đăng nhập hoặc email đã tồn tại trong hệ thống", result.message)
+    }
+
+    /**
+     * Kịch bản: Backend trả 403 AUTH_ACCOUNT_PENDING_APPROVAL.
+     * Kỳ vọng: [AppError.AccountPendingApproval].
+     */
+    @Test
+    fun `parse 403 AUTH_ACCOUNT_PENDING_APPROVAL returns AccountPendingApproval`() {
+        val errorJson = """
+            {
+              "timestamp": "2026-10-28T03:16:46Z",
+              "status": 403,
+              "code": "AUTH_ACCOUNT_PENDING_APPROVAL",
+              "message": "Tài khoản của bạn đang chờ quản trị viên phê duyệt",
+              "path": "/api/v1/auth/login"
+            }
+        """.trimIndent()
+
+        val result = parseError(errorJson)
+
+        assertIs<AppError.AccountPendingApproval>(result)
+        assertEquals("Tài khoản của bạn đang chờ quản trị viên phê duyệt", result.message)
+    }
 }

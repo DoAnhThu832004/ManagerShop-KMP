@@ -28,12 +28,15 @@ data class LoginUiState(
 )
 
 data class RegisterUiState(
-    val shopName: String = "",
-    val identifier: String = "",
+    val fullName: String = "",
+    val username: String = "",
+    val email: String = "",
     val password: String = "",
     val confirmPassword: String = "",
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
+    val successMessage: String? = null,
+    val isPendingApproval: Boolean = false,
     val isSuccess: Boolean = false,
 )
 
@@ -123,6 +126,15 @@ class AuthViewModel(
                 }
             }
 
+            is AppError.AccountPendingApproval -> {
+                _loginState.update {
+                    it.copy(
+                        isLoading = false,
+                        errorMessage = error.message.ifBlank { "Tài khoản của bạn đang chờ quản trị viên phê duyệt và phân bổ chi nhánh" },
+                    )
+                }
+            }
+
             is AppError.RateLimited -> {
                 _loginState.update {
                     it.copy(
@@ -176,12 +188,16 @@ class AuthViewModel(
 
     // ── Register Handlers ──────────────────────────────────────────────────────
 
-    fun onRegisterShopNameChange(value: String) {
-        _registerState.update { it.copy(shopName = value, errorMessage = null) }
+    fun onRegisterFullNameChange(value: String) {
+        _registerState.update { it.copy(fullName = value, errorMessage = null) }
     }
 
-    fun onRegisterIdentifierChange(value: String) {
-        _registerState.update { it.copy(identifier = value, errorMessage = null) }
+    fun onRegisterUsernameChange(value: String) {
+        _registerState.update { it.copy(username = value, errorMessage = null) }
+    }
+
+    fun onRegisterEmailChange(value: String) {
+        _registerState.update { it.copy(email = value, errorMessage = null) }
     }
 
     fun onRegisterPasswordChange(value: String) {
@@ -195,21 +211,52 @@ class AuthViewModel(
     /**
      * Xác thực mật khẩu theo đúng chính sách bảo mật của backend (PasswordPolicyValidator).
      */
-    fun validatePasswordPolicy(password: String): String? {
-        return validatePasswordUseCase(password).errorMessage
+    fun validatePasswordPolicy(password: String, username: String? = null, email: String? = null): String? {
+        return validatePasswordUseCase(password, username, email).errorMessage
     }
 
     fun register(onSuccess: () -> Unit) {
         val state = _registerState.value
-        if (state.shopName.isBlank()) {
-            _registerState.update { it.copy(errorMessage = "Vui lòng nhập tên cửa hàng thời trang") }
+        val fullName = state.fullName.trim()
+        val username = state.username.trim()
+        val email = state.email.trim()
+
+        if (fullName.isBlank()) {
+            _registerState.update { it.copy(errorMessage = "Vui lòng nhập họ và tên của bạn") }
             return
         }
-        if (state.identifier.isBlank()) {
-            _registerState.update { it.copy(errorMessage = "Vui lòng nhập email hoặc số điện thoại") }
+        if (fullName.length > 100) {
+            _registerState.update { it.copy(errorMessage = "Họ và tên không được vượt quá 100 ký tự") }
             return
         }
-        val policyResult = validatePasswordUseCase(state.password)
+
+        if (username.isBlank()) {
+            _registerState.update { it.copy(errorMessage = "Vui lòng nhập tên đăng nhập") }
+            return
+        }
+        if (username.length < 3 || username.length > 50) {
+            _registerState.update { it.copy(errorMessage = "Tên đăng nhập phải từ 3 đến 50 ký tự") }
+            return
+        }
+        if (!username.matches(Regex("^[a-zA-Z0-9_]+$"))) {
+            _registerState.update { it.copy(errorMessage = "Tên đăng nhập chỉ được chứa chữ cái, chữ số và dấu gạch dưới") }
+            return
+        }
+
+        if (email.isBlank()) {
+            _registerState.update { it.copy(errorMessage = "Vui lòng nhập email") }
+            return
+        }
+        if (!email.matches(Regex("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$"))) {
+            _registerState.update { it.copy(errorMessage = "Email không đúng định dạng") }
+            return
+        }
+        if (email.length > 190) {
+            _registerState.update { it.copy(errorMessage = "Email không được vượt quá 190 ký tự") }
+            return
+        }
+
+        val policyResult = validatePasswordUseCase(state.password, username, email)
         if (!policyResult.isValid) {
             _registerState.update { it.copy(errorMessage = policyResult.errorMessage) }
             return
@@ -222,21 +269,37 @@ class AuthViewModel(
         viewModelScope.launch {
             _registerState.update { it.copy(isLoading = true, errorMessage = null) }
             val result = authRepository.register(
-                shopName = state.shopName,
-                identifier = state.identifier,
+                fullName = fullName,
+                username = username,
+                email = email,
                 password = state.password,
+                confirmPassword = state.confirmPassword,
             )
 
             when (result) {
                 is Resource.Success -> {
-                    _registerState.update { it.copy(isLoading = false, isSuccess = true) }
-                    // Sau khi đăng ký thành công, điền sẵn thông tin sang màn hình đăng nhập
-                    _loginState.update { it.copy(identifier = state.identifier, password = state.password) }
-                    onSuccess()
+                    val response = result.data
+                    val isPending = response.status?.equals("PENDING_APPROVAL", ignoreCase = true) == true
+                    _registerState.update {
+                        it.copy(
+                            isLoading = false,
+                            isSuccess = true,
+                            isPendingApproval = isPending,
+                            successMessage = response.message.ifBlank { "Đăng ký tài khoản thành công" }
+                        )
+                    }
+
+                    if (!isPending) {
+                        // Sau khi đăng ký thành công, điền sẵn thông tin sang màn hình đăng nhập
+                        _loginState.update { it.copy(identifier = username, password = state.password) }
+                        onSuccess()
+                    }
                 }
 
                 is Resource.Error -> {
                     val msg = when (val err = result.appError) {
+                        is AppError.UserAlreadyExists -> err.message
+                        is AppError.RegistrationDisabled -> err.message
                         is AppError.PasswordPolicy -> err.message
                         is AppError.RateLimited -> err.message
                         is AppError.Network -> "Không thể kết nối máy chủ, vui lòng kiểm tra kết nối mạng"

@@ -2,6 +2,7 @@ package com.thupo.managershop.presentation.auth
 
 import com.thupo.managershop.core.AppError
 import com.thupo.managershop.core.Resource
+import com.thupo.managershop.data.remote.dto.RegisterResponseDto
 import com.thupo.managershop.testutil.FakeAuthRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -143,64 +144,98 @@ class AuthViewModelTest {
 
     @Test
     fun onRegisterFields_updatesStateAndClearsError() {
-        viewModel.onRegisterShopNameChange("My Boutique")
-        viewModel.onRegisterIdentifierChange("boutique@test.com")
-        viewModel.onRegisterPasswordChange("Password123")
-        viewModel.onRegisterConfirmPasswordChange("Password123")
+        viewModel.onRegisterFullNameChange("Nguyen Van A")
+        viewModel.onRegisterUsernameChange("nguyenvana")
+        viewModel.onRegisterEmailChange("vana@test.com")
+        viewModel.onRegisterPasswordChange("Password123@")
+        viewModel.onRegisterConfirmPasswordChange("Password123@")
 
         val state = viewModel.registerState.value
-        assertEquals("My Boutique", state.shopName)
-        assertEquals("boutique@test.com", state.identifier)
-        assertEquals("Password123", state.password)
-        assertEquals("Password123", state.confirmPassword)
+        assertEquals("Nguyen Van A", state.fullName)
+        assertEquals("nguyenvana", state.username)
+        assertEquals("vana@test.com", state.email)
+        assertEquals("Password123@", state.password)
+        assertEquals("Password123@", state.confirmPassword)
         assertNull(state.errorMessage)
     }
 
     @Test
-    fun register_withBlankShopName_setsErrorMessage() = runTest(testDispatcher) {
-        viewModel.onRegisterShopNameChange("   ")
-        viewModel.onRegisterIdentifierChange("user@test.com")
-        viewModel.onRegisterPasswordChange("Password123")
-        viewModel.onRegisterConfirmPasswordChange("Password123")
+    fun register_withBlankFullName_setsErrorMessage() = runTest(testDispatcher) {
+        viewModel.onRegisterFullNameChange("   ")
+        viewModel.onRegisterUsernameChange("nguyenvana")
+        viewModel.onRegisterEmailChange("user@test.com")
+        viewModel.onRegisterPasswordChange("Password123@")
+        viewModel.onRegisterConfirmPasswordChange("Password123@")
 
         viewModel.register {}
 
-        assertEquals("Vui lòng nhập tên cửa hàng thời trang", viewModel.registerState.value.errorMessage)
-        assertNull(authRepository.lastRegisterShopName)
+        assertEquals("Vui lòng nhập họ và tên của bạn", viewModel.registerState.value.errorMessage)
+        assertNull(authRepository.lastRegisterFullName)
+    }
+
+    @Test
+    fun register_withInvalidUsername_setsErrorMessage() = runTest(testDispatcher) {
+        viewModel.onRegisterFullNameChange("Nguyen Van A")
+        viewModel.onRegisterUsernameChange("ab") // shorter than 3 chars
+        viewModel.onRegisterEmailChange("user@test.com")
+        viewModel.onRegisterPasswordChange("Password123@")
+        viewModel.onRegisterConfirmPasswordChange("Password123@")
+
+        viewModel.register {}
+
+        assertEquals("Tên đăng nhập phải từ 3 đến 50 ký tự", viewModel.registerState.value.errorMessage)
+        assertNull(authRepository.lastRegisterUsername)
+    }
+
+    @Test
+    fun register_withInvalidEmail_setsErrorMessage() = runTest(testDispatcher) {
+        viewModel.onRegisterFullNameChange("Nguyen Van A")
+        viewModel.onRegisterUsernameChange("nguyenvana")
+        viewModel.onRegisterEmailChange("invalid_email")
+        viewModel.onRegisterPasswordChange("Password123@")
+        viewModel.onRegisterConfirmPasswordChange("Password123@")
+
+        viewModel.register {}
+
+        assertEquals("Email không đúng định dạng", viewModel.registerState.value.errorMessage)
+        assertNull(authRepository.lastRegisterEmail)
     }
 
     @Test
     fun register_withWeakPassword_setsPasswordPolicyError() = runTest(testDispatcher) {
-        viewModel.onRegisterShopNameChange("My Shop")
-        viewModel.onRegisterIdentifierChange("user@test.com")
+        viewModel.onRegisterFullNameChange("Nguyen Van A")
+        viewModel.onRegisterUsernameChange("nguyenvana")
+        viewModel.onRegisterEmailChange("user@test.com")
         viewModel.onRegisterPasswordChange("weak")
         viewModel.onRegisterConfirmPasswordChange("weak")
 
         viewModel.register {}
 
         assertEquals("Mật khẩu phải có tối thiểu 8 ký tự", viewModel.registerState.value.errorMessage)
-        assertNull(authRepository.lastRegisterShopName)
+        assertNull(authRepository.lastRegisterFullName)
     }
 
     @Test
     fun register_withMismatchedConfirmPassword_setsErrorMessage() = runTest(testDispatcher) {
-        viewModel.onRegisterShopNameChange("My Shop")
-        viewModel.onRegisterIdentifierChange("user@test.com")
-        viewModel.onRegisterPasswordChange("Password123")
-        viewModel.onRegisterConfirmPasswordChange("DifferentPassword123")
+        viewModel.onRegisterFullNameChange("Nguyen Van A")
+        viewModel.onRegisterUsernameChange("nguyenvana")
+        viewModel.onRegisterEmailChange("user@test.com")
+        viewModel.onRegisterPasswordChange("Password123@")
+        viewModel.onRegisterConfirmPasswordChange("DifferentPassword123@")
 
         viewModel.register {}
 
         assertEquals("Mật khẩu xác nhận không khớp", viewModel.registerState.value.errorMessage)
-        assertNull(authRepository.lastRegisterShopName)
+        assertNull(authRepository.lastRegisterFullName)
     }
 
     @Test
     fun register_success_updatesStateAndPreFillsLoginState() = runTest(testDispatcher) {
-        viewModel.onRegisterShopNameChange("My Shop")
-        viewModel.onRegisterIdentifierChange("user@test.com")
-        viewModel.onRegisterPasswordChange("Password123")
-        viewModel.onRegisterConfirmPasswordChange("Password123")
+        viewModel.onRegisterFullNameChange("Nguyen Van A")
+        viewModel.onRegisterUsernameChange("nguyenvana")
+        viewModel.onRegisterEmailChange("user@test.com")
+        viewModel.onRegisterPasswordChange("Password123@")
+        viewModel.onRegisterConfirmPasswordChange("Password123@")
 
         var successCalled = false
         viewModel.register { successCalled = true }
@@ -210,7 +245,36 @@ class AuthViewModelTest {
         assertTrue(viewModel.registerState.value.isSuccess)
         assertFalse(viewModel.registerState.value.isLoading)
         // Kiểm tra điền sẵn thông tin sang login state
-        assertEquals("user@test.com", viewModel.loginState.value.identifier)
-        assertEquals("Password123", viewModel.loginState.value.password)
+        assertEquals("nguyenvana", viewModel.loginState.value.identifier)
+        assertEquals("Password123@", viewModel.loginState.value.password)
+    }
+
+    @Test
+    fun register_pendingApproval_setsPendingApprovalStateWithoutCallingSuccess() = runTest(testDispatcher) {
+        authRepository.registerResult = Resource.Success(
+            RegisterResponseDto(
+                id = 101L,
+                username = "pending_user",
+                email = "pending@test.com",
+                fullName = "Pending User",
+                status = "PENDING_APPROVAL",
+                roles = listOf("CASHIER"),
+                message = "Đăng ký thành công. Tài khoản đang chờ quản trị viên duyệt.",
+            )
+        )
+
+        viewModel.onRegisterFullNameChange("Pending User")
+        viewModel.onRegisterUsernameChange("pending_user")
+        viewModel.onRegisterEmailChange("pending@test.com")
+        viewModel.onRegisterPasswordChange("Password123@")
+        viewModel.onRegisterConfirmPasswordChange("Password123@")
+
+        var successCalled = false
+        viewModel.register { successCalled = true }
+        advanceUntilIdle()
+
+        assertFalse(successCalled)
+        assertTrue(viewModel.registerState.value.isPendingApproval)
+        assertTrue(viewModel.registerState.value.successMessage?.contains("chờ quản trị viên duyệt") == true)
     }
 }

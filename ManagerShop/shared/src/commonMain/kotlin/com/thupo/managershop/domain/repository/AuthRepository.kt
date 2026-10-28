@@ -3,6 +3,7 @@ package com.thupo.managershop.domain.repository
 
 import com.thupo.managershop.core.Resource
 import com.thupo.managershop.data.remote.dto.LoginResponseDto
+import com.thupo.managershop.data.remote.dto.RegisterResponseDto
 
 /**
  * Interface Repository xác thực người dùng.
@@ -21,11 +22,13 @@ interface AuthRepository {
     ): Resource<LoginResponseDto>
 
     /**
-     * Đăng ký tài khoản mới cho cửa hàng hoặc nhân viên.
+     * Đăng ký tài khoản người dùng mới chuẩn Production.
      */
     suspend fun register(
-        shopName: String,
-        identifier: String,
+        fullName: String,
+        username: String,
+        email: String,
         password: String,
-    ): Resource<Unit>
+        confirmPassword: String,
+    ): Resource<RegisterResponseDto>
 }

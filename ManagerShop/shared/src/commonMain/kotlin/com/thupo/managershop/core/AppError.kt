@@ -50,6 +50,15 @@ sealed class AppError {
     /** Mật khẩu mới đã được dùng trước đó. */
     data class PasswordReused(val message: String) : AppError()
 
+    /** Tên đăng nhập hoặc email đã tồn tại trong hệ thống (HTTP 409). */
+    data class UserAlreadyExists(val message: String) : AppError()
+
+    /** Tính năng đăng ký tài khoản tạm thời bị vô hiệu hoá (HTTP 403). */
+    data class RegistrationDisabled(val message: String) : AppError()
+
+    /** Tài khoản đang chờ quản trị viên phê duyệt và phân bổ chi nhánh (HTTP 403). */
+    data class AccountPendingApproval(val message: String) : AppError()
+
     /** Không có quyền thực hiện thao tác (HTTP 403). */
     data class Forbidden(val message: String) : AppError()
 

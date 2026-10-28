@@ -5,6 +5,8 @@ import com.thupo.managershop.data.remote.dto.ChangePasswordRequestDto
 import com.thupo.managershop.data.remote.dto.ForgotPasswordRequestDto
 import com.thupo.managershop.data.remote.dto.LoginRequestDto
 import com.thupo.managershop.data.remote.dto.RefreshTokenRequestDto
+import com.thupo.managershop.data.remote.dto.RegisterRequestDto
+import com.thupo.managershop.data.remote.dto.RegisterResponseDto
 import com.thupo.managershop.data.remote.dto.ResetPasswordRequestDto
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -230,5 +232,48 @@ class AuthApiTest {
         authApi.revokeSession(99L)
 
         assertEquals("99", deletedId)
+    }
+
+    @Test
+    fun `register sends POST auth register and parses RegisterResponseDto`() = runTest {
+        val mockEngine = MockEngine { request ->
+            assertEquals("/api/v1/auth/register", request.url.encodedPath)
+            assertEquals(HttpMethod.Post, request.method)
+
+            respond(
+                content = """
+                    {
+                        "id": 100,
+                        "username": "cashier_shop1",
+                        "email": "cashier@shop.vn",
+                        "fullName": "Nguyen Van A",
+                        "status": "ACTIVE",
+                        "roles": ["CASHIER"],
+                        "createdAt": "2026-10-28T03:16:46Z",
+                        "message": "Đăng ký tài khoản thành công. Bạn có thể đăng nhập ngay bây giờ."
+                    }
+                """.trimIndent(),
+                status = HttpStatusCode.Created,
+                headers = headersOf(HttpHeaders.ContentType, "application/json"),
+            )
+        }
+
+        val authApi = AuthApiImpl(createMockClient(mockEngine))
+        val response = authApi.register(
+            RegisterRequestDto(
+                fullName = "Nguyen Van A",
+                username = "cashier_shop1",
+                email = "cashier@shop.vn",
+                password = "Password123@",
+                confirmPassword = "Password123@",
+            )
+        )
+
+        assertEquals(100L, response.id)
+        assertEquals("cashier_shop1", response.username)
+        assertEquals("cashier@shop.vn", response.email)
+        assertEquals("ACTIVE", response.status)
+        assertEquals(listOf("CASHIER"), response.roles)
+        assertTrue(response.message.contains("Đăng ký tài khoản thành công"))
     }
 }

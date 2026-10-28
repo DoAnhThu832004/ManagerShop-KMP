@@ -12,7 +12,7 @@ class ValidatePasswordUseCaseTest {
 
     @Test
     fun validPassword_returnsSuccess() {
-        val result = validator("Password123")
+        val result = validator("StrongPass123@")
         assertTrue(result.isValid)
         assertNull(result.errorMessage)
     }
@@ -51,5 +51,26 @@ class ValidatePasswordUseCaseTest {
         val result = validator("PasswordNoDigits")
         assertFalse(result.isValid)
         assertEquals("Mật khẩu phải chứa ít nhất 1 chữ số (0-9)", result.errorMessage)
+    }
+
+    @Test
+    fun passwordInCommonPasswords_returnsError() {
+        val result = validator("Password123")
+        assertFalse(result.isValid)
+        assertEquals("Mật khẩu quá phổ biến và dễ đoán, vui lòng chọn mật khẩu phức tạp hơn", result.errorMessage)
+    }
+
+    @Test
+    fun passwordContainingUsername_returnsError() {
+        val result = validator("HelloThuhang123@", username = "thuhang")
+        assertFalse(result.isValid)
+        assertEquals("Mật khẩu không được chứa tên đăng nhập của bạn", result.errorMessage)
+    }
+
+    @Test
+    fun passwordContainingEmailPrefix_returnsError() {
+        val result = validator("HelloThuhang123@", email = "thuhang@gmail.com")
+        assertFalse(result.isValid)
+        assertEquals("Mật khẩu không được chứa phần tên của email", result.errorMessage)
     }
 }

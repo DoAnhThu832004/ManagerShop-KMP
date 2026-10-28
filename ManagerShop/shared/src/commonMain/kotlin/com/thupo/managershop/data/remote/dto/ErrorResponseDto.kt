@@ -71,6 +71,19 @@ fun ErrorResponseDto.toAppError(): AppError = when (code) {
     "AUTH_PASSWORD_REUSED" ->
         AppError.PasswordReused(message = message)
 
+    // --- User / Account Conflict ---
+    "AUTH_USER_ALREADY_EXISTS",
+    "DATA_CONFLICT" ->
+        AppError.UserAlreadyExists(message = message)
+
+    // --- Registration Disabled ---
+    "AUTH_REGISTRATION_DISABLED" ->
+        AppError.RegistrationDisabled(message = message)
+
+    // --- Account Pending Approval ---
+    "AUTH_ACCOUNT_PENDING_APPROVAL" ->
+        AppError.AccountPendingApproval(message = message)
+
     // --- Validation Error ---
     "VALIDATION_ERROR" ->
         AppError.Unknown(message = message)
@@ -84,6 +97,7 @@ fun ErrorResponseDto.toAppError(): AppError = when (code) {
     else -> when (status) {
         401 -> AppError.SessionExpired(message = message)
         403 -> AppError.Forbidden(message = message)
+        409 -> AppError.UserAlreadyExists(message = message)
         423 -> AppError.AccountLocked(
             retryAfterSeconds = retryAfterSeconds ?: 0L,
             message = message,

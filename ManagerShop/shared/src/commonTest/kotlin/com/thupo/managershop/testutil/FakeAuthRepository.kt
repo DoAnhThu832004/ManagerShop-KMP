@@ -2,6 +2,7 @@ package com.thupo.managershop.testutil
 
 import com.thupo.managershop.core.Resource
 import com.thupo.managershop.data.remote.dto.LoginResponseDto
+import com.thupo.managershop.data.remote.dto.RegisterResponseDto
 import com.thupo.managershop.domain.repository.AuthRepository
 
 class FakeAuthRepository : AuthRepository {
@@ -16,13 +17,25 @@ class FakeAuthRepository : AuthRepository {
         )
     )
 
-    var registerResult: Resource<Unit> = Resource.Success(Unit)
+    var registerResult: Resource<RegisterResponseDto> = Resource.Success(
+        RegisterResponseDto(
+            id = 1L,
+            username = "testuser",
+            email = "user@test.com",
+            fullName = "Nguyen Van A",
+            status = "ACTIVE",
+            roles = listOf("CASHIER"),
+            message = "Đăng ký tài khoản thành công",
+        )
+    )
 
     var lastLoginIdentifier: String? = null
     var lastLoginPassword: String? = null
-    var lastRegisterShopName: String? = null
-    var lastRegisterIdentifier: String? = null
+    var lastRegisterFullName: String? = null
+    var lastRegisterUsername: String? = null
+    var lastRegisterEmail: String? = null
     var lastRegisterPassword: String? = null
+    var lastRegisterConfirmPassword: String? = null
 
     override suspend fun login(
         identifier: String,
@@ -36,13 +49,17 @@ class FakeAuthRepository : AuthRepository {
     }
 
     override suspend fun register(
-        shopName: String,
-        identifier: String,
+        fullName: String,
+        username: String,
+        email: String,
         password: String,
-    ): Resource<Unit> {
-        lastRegisterShopName = shopName
-        lastRegisterIdentifier = identifier
+        confirmPassword: String,
+    ): Resource<RegisterResponseDto> {
+        lastRegisterFullName = fullName
+        lastRegisterUsername = username
+        lastRegisterEmail = email
         lastRegisterPassword = password
+        lastRegisterConfirmPassword = confirmPassword
         return registerResult
     }
 }

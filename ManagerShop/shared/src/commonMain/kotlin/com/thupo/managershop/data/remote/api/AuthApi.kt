@@ -8,6 +8,7 @@ import com.thupo.managershop.data.remote.dto.LoginResponseDto
 import com.thupo.managershop.data.remote.dto.MessageResponseDto
 import com.thupo.managershop.data.remote.dto.RefreshTokenRequestDto
 import com.thupo.managershop.data.remote.dto.RegisterRequestDto
+import com.thupo.managershop.data.remote.dto.RegisterResponseDto
 import com.thupo.managershop.data.remote.dto.ResetPasswordRequestDto
 import com.thupo.managershop.data.remote.dto.SessionResponseDto
 import io.ktor.client.HttpClient
@@ -27,7 +28,7 @@ interface AuthApi {
     suspend fun login(request: LoginRequestDto): LoginResponseDto
 
     /** Đăng ký tài khoản mới (POST auth/register) */
-    suspend fun register(request: RegisterRequestDto): MessageResponseDto
+    suspend fun register(request: RegisterRequestDto): RegisterResponseDto
 
     /** Làm mới Access Token bằng Refresh Token (POST auth/refresh) */
     suspend fun refresh(request: RefreshTokenRequestDto): LoginResponseDto
@@ -68,7 +69,7 @@ class AuthApiImpl(
         }.body()
     }
 
-    override suspend fun register(request: RegisterRequestDto): MessageResponseDto {
+    override suspend fun register(request: RegisterRequestDto): RegisterResponseDto {
         return httpClient.post("auth/register") {
             contentType(ContentType.Application.Json)
             setBody(request)

@@ -9,6 +9,7 @@ import com.thupo.managershop.data.remote.api.AuthApi
 import com.thupo.managershop.data.remote.dto.LoginRequestDto
 import com.thupo.managershop.data.remote.dto.LoginResponseDto
 import com.thupo.managershop.data.remote.dto.RegisterRequestDto
+import com.thupo.managershop.data.remote.dto.RegisterResponseDto
 import com.thupo.managershop.domain.repository.AuthRepository
 
 class AuthRepositoryImpl(
@@ -43,24 +44,22 @@ class AuthRepositoryImpl(
     }
 
     override suspend fun register(
-        shopName: String,
-        identifier: String,
+        fullName: String,
+        username: String,
+        email: String,
         password: String,
-    ): Resource<Unit> {
+        confirmPassword: String,
+    ): Resource<RegisterResponseDto> {
         val request = RegisterRequestDto(
-            fullName = shopName.trim(),
-            identifier = identifier.trim(),
+            fullName = fullName.trim(),
+            username = username.trim().lowercase(),
+            email = email.trim().lowercase(),
             password = password,
+            confirmPassword = confirmPassword,
         )
 
-        val result = safeApiCall(dispatchers.io) {
+        return safeApiCall(dispatchers.io) {
             authApi.register(request)
-        }
-
-        return when (result) {
-            is Resource.Success -> Resource.Success(Unit)
-            is Resource.Error -> Resource.Error(result.appError)
-            is Resource.Loading -> Resource.Loading
         }
     }
 }

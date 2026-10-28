@@ -21,7 +21,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -56,8 +59,9 @@ fun RegisterScreen(
 
     RegisterContent(
         state = state,
-        onShopNameChange = viewModel::onRegisterShopNameChange,
-        onIdentifierChange = viewModel::onRegisterIdentifierChange,
+        onFullNameChange = viewModel::onRegisterFullNameChange,
+        onUsernameChange = viewModel::onRegisterUsernameChange,
+        onEmailChange = viewModel::onRegisterEmailChange,
         onPasswordChange = viewModel::onRegisterPasswordChange,
         onConfirmPasswordChange = viewModel::onRegisterConfirmPasswordChange,
         onRegisterClick = { viewModel.register(onRegisterSuccess) },
@@ -70,8 +74,9 @@ fun RegisterScreen(
 @Composable
 fun RegisterContent(
     state: RegisterUiState,
-    onShopNameChange: (String) -> Unit,
-    onIdentifierChange: (String) -> Unit,
+    onFullNameChange: (String) -> Unit,
+    onUsernameChange: (String) -> Unit,
+    onEmailChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
     onConfirmPasswordChange: (String) -> Unit,
     onRegisterClick: () -> Unit,
@@ -81,6 +86,7 @@ fun RegisterContent(
 ) {
     val focusManager = LocalFocusManager.current
     val isInteractionEnabled = !state.isLoading
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -100,7 +106,9 @@ fun RegisterContent(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             RegisterFormHeader()
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Thông báo lỗi nếu có
             AnimatedVisibility(
                 visible = !state.errorMessage.isNullOrBlank(),
                 enter = expandVertically() + fadeIn(),
@@ -113,58 +121,119 @@ fun RegisterContent(
                     }
                 }
             }
-            ShopPillTextField(
-                label = "Tên cửa hàng thời trang",
-                value = state.shopName,
-                onValueChange = onShopNameChange,
-                placeholder = "Ví dụ: Shop Thu Hằng Boutique",
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            ShopPillTextField(
-                label = "Email hoặc Số điện thoại",
-                value = state.identifier,
-                onValueChange = onIdentifierChange,
-                placeholder = "admin@thuhang.vn",
-            )
 
-            Spacer(modifier = Modifier.height(10.dp))
-            ShopPillTextField(
-                label = "Mật khẩu bảo vệ",
-                value = state.password,
-                onValueChange = onPasswordChange,
-                placeholder = "Tối thiểu 8 ký tự, có số và chữ hoa",
-                isPassword = true,
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-            ShopPillTextField(
-                label = "Xác nhận mật khẩu",
-                value = state.confirmPassword,
-                onValueChange = onConfirmPasswordChange,
-                placeholder = "Nhập lại mật khẩu bảo vệ",
-                isPassword = true,
-                enabled = !state.isLoading,
-                imeAction = ImeAction.Done,
-                onImeAction = {
-                    if (isInteractionEnabled) {
-                        onRegisterClick()
+            // Thông báo tài khoản đang chờ phê duyệt
+            AnimatedVisibility(
+                visible = state.isPendingApproval,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut(),
+            ) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF3C7)),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(
+                            text = "⏳ Đăng ký thành công!",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF92400E),
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = state.successMessage ?: "Tài khoản của bạn đang chờ Quản trị viên duyệt và phân bổ chi nhánh. Bạn có thể đăng nhập sau khi hoàn tất phê duyệt.",
+                            fontSize = 13.sp,
+                            color = Color(0xFF78350F),
+                            textAlign = TextAlign.Center,
+                            lineHeight = 18.sp,
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        ShopPrimaryButton(
+                            text = "Đến màn hình Đăng nhập",
+                            onClick = onNavigateToLogin,
+                        )
                     }
-                },
-            )
+                }
+            }
 
-            Spacer(modifier = Modifier.height(18.dp))
-            ShopPrimaryButton(
-                text = "Tạo tài khoản & Đăng nhập",
-                onClick = {
-                    focusManager.clearFocus()
-                    onRegisterClick()
-                },
-                isLoading = state.isLoading,
-            )
+            if (!state.isPendingApproval) {
+                // Trường Họ và tên
+                ShopPillTextField(
+                    label = "Họ và tên",
+                    value = state.fullName,
+                    onValueChange = onFullNameChange,
+                    placeholder = "Ví dụ: Nguyễn Văn A",
+                    enabled = isInteractionEnabled,
+                )
+                Spacer(modifier = Modifier.height(10.dp))
 
-            Spacer(modifier = Modifier.height(12.dp))
+                // Trường Tên đăng nhập (username)
+                ShopPillTextField(
+                    label = "Tên đăng nhập",
+                    value = state.username,
+                    onValueChange = onUsernameChange,
+                    placeholder = "Ví dụ: nguyenvana (3-50 ký tự)",
+                    enabled = isInteractionEnabled,
+                )
+                Spacer(modifier = Modifier.height(10.dp))
 
-            RegisterTermsText()
+                // Trường Email
+                ShopPillTextField(
+                    label = "Email",
+                    value = state.email,
+                    onValueChange = onEmailChange,
+                    placeholder = "Ví dụ: vana@example.com",
+                    enabled = isInteractionEnabled,
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Trường Mật khẩu bảo vệ
+                ShopPillTextField(
+                    label = "Mật khẩu bảo vệ",
+                    value = state.password,
+                    onValueChange = onPasswordChange,
+                    placeholder = "Tối thiểu 8 ký tự, có chữ hoa, thường & số",
+                    isPassword = true,
+                    enabled = isInteractionEnabled,
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Trường Xác nhận mật khẩu
+                ShopPillTextField(
+                    label = "Xác nhận mật khẩu",
+                    value = state.confirmPassword,
+                    onValueChange = onConfirmPasswordChange,
+                    placeholder = "Nhập lại mật khẩu bảo vệ",
+                    isPassword = true,
+                    enabled = isInteractionEnabled,
+                    imeAction = ImeAction.Done,
+                    onImeAction = {
+                        if (isInteractionEnabled) {
+                            onRegisterClick()
+                        }
+                    },
+                )
+                Spacer(modifier = Modifier.height(18.dp))
+
+                ShopPrimaryButton(
+                    text = "Tạo tài khoản & Đăng nhập",
+                    onClick = {
+                        focusManager.clearFocus()
+                        onRegisterClick()
+                    },
+                    isLoading = state.isLoading,
+                    enabled = isInteractionEnabled,
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                RegisterTermsText()
+            }
         }
         RegisterFooter(onNavigateToLogin = onNavigateToLogin)
     }
@@ -188,7 +257,7 @@ fun RegisterFormHeader(modifier: Modifier = Modifier) {
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "Khởi tạo gian hàng thời trang của bạn",
+            text = "Khởi tạo tài khoản hệ thống ManagerShop",
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium,
             color = Color(0xFF64748B),
@@ -246,11 +315,13 @@ fun RegisterFooter(
 private fun RegisterContentPreview() {
     RegisterContent(
         state = RegisterUiState(
-            shopName = "Thu Hằng Boutique",
-            identifier = "admin@thuhang.vn",
+            fullName = "Nguyễn Văn A",
+            username = "nguyenvana",
+            email = "vana@example.com",
         ),
-        onShopNameChange = {},
-        onIdentifierChange = {},
+        onFullNameChange = {},
+        onUsernameChange = {},
+        onEmailChange = {},
         onPasswordChange = {},
         onConfirmPasswordChange = {},
         onRegisterClick = {},
@@ -264,12 +335,14 @@ private fun RegisterContentPreview() {
 private fun RegisterContentErrorPreview() {
     RegisterContent(
         state = RegisterUiState(
-            shopName = "Thu Hằng Boutique",
-            identifier = "admin@thuhang.vn",
-            errorMessage = "Mật khẩu xác nhận không khớp",
+            fullName = "Nguyễn Văn A",
+            username = "nguyenvana",
+            email = "vana@example.com",
+            errorMessage = "Tên đăng nhập hoặc email đã tồn tại trong hệ thống",
         ),
-        onShopNameChange = {},
-        onIdentifierChange = {},
+        onFullNameChange = {},
+        onUsernameChange = {},
+        onEmailChange = {},
         onPasswordChange = {},
         onConfirmPasswordChange = {},
         onRegisterClick = {},
@@ -280,15 +353,18 @@ private fun RegisterContentErrorPreview() {
 
 @Preview
 @Composable
-private fun RegisterContentLoadingPreview() {
+private fun RegisterContentPendingApprovalPreview() {
     RegisterContent(
         state = RegisterUiState(
-            shopName = "Thu Hằng Boutique",
-            identifier = "admin@thuhang.vn",
-            isLoading = true,
+            fullName = "Nguyễn Văn A",
+            username = "nguyenvana",
+            email = "vana@example.com",
+            isPendingApproval = true,
+            successMessage = "Tài khoản của bạn đang chờ Quản trị viên duyệt và phân bổ chi nhánh.",
         ),
-        onShopNameChange = {},
-        onIdentifierChange = {},
+        onFullNameChange = {},
+        onUsernameChange = {},
+        onEmailChange = {},
         onPasswordChange = {},
         onConfirmPasswordChange = {},
         onRegisterClick = {},
