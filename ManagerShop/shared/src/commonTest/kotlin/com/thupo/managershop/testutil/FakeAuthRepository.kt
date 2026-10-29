@@ -1,6 +1,7 @@
 package com.thupo.managershop.testutil
 
 import com.thupo.managershop.core.Resource
+import com.thupo.managershop.data.remote.dto.AccountStatusResponseDto
 import com.thupo.managershop.data.remote.dto.LoginResponseDto
 import com.thupo.managershop.data.remote.dto.RegisterResponseDto
 import com.thupo.managershop.domain.repository.AuthRepository
@@ -61,5 +62,27 @@ class FakeAuthRepository : AuthRepository {
         lastRegisterPassword = password
         lastRegisterConfirmPassword = confirmPassword
         return registerResult
+    }
+
+    var checkStatusResult: Resource<AccountStatusResponseDto> = Resource.Success(
+        AccountStatusResponseDto(username = "testuser", status = "ACTIVE")
+    )
+    var refreshSessionResult: Resource<LoginResponseDto> = Resource.Success(
+        LoginResponseDto(
+            accessToken = "new_access_token",
+            refreshToken = "new_refresh_token",
+            expiresIn = 3600L,
+            roles = listOf("CASHIER"),
+            branchId = 2L,
+            branchName = "Chi nhánh 2",
+        )
+    )
+
+    override suspend fun checkAccountStatus(username: String): Resource<AccountStatusResponseDto> {
+        return checkStatusResult
+    }
+
+    override suspend fun refreshSession(): Resource<LoginResponseDto> {
+        return refreshSessionResult
     }
 }

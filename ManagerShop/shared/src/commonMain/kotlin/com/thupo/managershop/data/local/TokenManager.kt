@@ -15,6 +15,23 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 
 /**
+ * Điểm đến sau khi xác thực thành công (Single Source of Truth cho luồng điều hướng).
+ */
+sealed interface PostAuthDestination {
+    /** Đã có chi nhánh hợp lệ -> Vào màn hình Bán hàng */
+    data object Main : PostAuthDestination
+
+    /** Chủ shop mới (ADMIN/OWNER) chưa có chi nhánh -> Vào tạo Chi nhánh đầu tiên */
+    data object SetupBranch : PostAuthDestination
+
+    /** Thu ngân (CASHIER/STAFF) chưa có chi nhánh -> Vào màn hình chờ gán quầy */
+    data object PendingBranchAssignment : PostAuthDestination
+
+    /** Chưa đăng nhập hoặc phiên không hợp lệ -> Vào màn hình Đăng nhập */
+    data object Login : PostAuthDestination
+}
+
+/**
  * Quản lý trạng thái phiên đăng nhập tập trung.
  *
  * Là single source of truth cho:
@@ -110,6 +127,55 @@ class TokenManager(
             accessToken = newAccessToken,
             refreshToken = currentRefresh,
         )
+    }
+
+    /**
+     * Cập nhật thông tin chi nhánh mới vào DataStore.
+     */
+    suspend fun updateBranch(branchId: Long, branchName: String) {
+        sessionStore.updateBranch(branchId, branchName)
+    }
+
+    /**
+     * Lưu phiên đầy đủ bao gồm cả cặp Token và thông tin phân bổ chi nhánh.
+     */
+    suspend fun saveFullSession(
+        accessToken: String,
+        refreshToken: String,
+        roles: List<String>,
+        branchId: Long?,
+        branchName: String?,
+    ) {
+        secureStorage.saveTokens(accessToken, refreshToken)
+        sessionStore.saveUserData(roles, branchId, branchName)
+    }
+
+    /**
+     * Xác định điểm đến sau khi xác thực thành công (Single Source of Truth cho luồng điều hướng).
+     */
+    suspend fun resolvePostAuthDestination(): PostAuthDestination {
+        return try {
+            val refreshToken = secureStorage.getRefreshToken()
+            if (refreshToken.isNullOrBlank()) return PostAuthDestination.Login
+
+            val roles = sessionStore.getUserRoles().first()
+            if (roles.isEmpty()) return PostAuthDestination.Login
+
+            val branchInfo = sessionStore.getBranchInfo().first()
+            val branchId = branchInfo?.first
+
+            val hasAdminRole = roles.any {
+                it.contains("ADMIN", ignoreCase = true) || it.contains("OWNER", ignoreCase = true)
+            }
+
+            when {
+                branchId != null -> PostAuthDestination.Main
+                hasAdminRole -> PostAuthDestination.SetupBranch
+                else -> PostAuthDestination.PendingBranchAssignment
+            }
+        } catch (e: Throwable) {
+            PostAuthDestination.Login
+        }
     }
 
     /**

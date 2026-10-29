@@ -53,6 +53,10 @@ class TokenManagerTest {
 
         override fun getBranchInfo(): Flow<Pair<Long?, String?>?> = branchState
 
+        override suspend fun updateBranch(branchId: Long, branchName: String) {
+            branchState.value = Pair(branchId, branchName)
+        }
+
         override suspend fun clearUserData() {
             rolesState.value = emptyList()
             branchState.value = null
@@ -178,5 +182,75 @@ class TokenManagerTest {
         tokenManager.saveSession(loginDto)
 
         assertTrue(tokenManager.hasValidSession())
+    }
+
+    @Test
+    fun `resolvePostAuthDestination returns SetupBranch when Admin has no branch`() = runTest {
+        val testDispatcher = UnconfinedTestDispatcher(testScheduler)
+        val testScope = TestScope(testDispatcher)
+
+        val secureStorage = FakeSecureTokenStorage()
+        val sessionStore = FakeSessionStore()
+        val tokenManager = TokenManager(secureStorage, sessionStore, testScope)
+
+        val loginDto = LoginResponseDto(
+            accessToken = "access_token",
+            refreshToken = "refresh_token",
+            expiresIn = 3600L,
+            roles = listOf("OWNER"),
+            branchId = null,
+            branchName = null,
+        )
+        tokenManager.saveSession(loginDto)
+
+        assertEquals(PostAuthDestination.SetupBranch, tokenManager.resolvePostAuthDestination())
+    }
+
+    @Test
+    fun `resolvePostAuthDestination returns PendingBranchAssignment when Cashier has no branch`() = runTest {
+        val testDispatcher = UnconfinedTestDispatcher(testScheduler)
+        val testScope = TestScope(testDispatcher)
+
+        val secureStorage = FakeSecureTokenStorage()
+        val sessionStore = FakeSessionStore()
+        val tokenManager = TokenManager(secureStorage, sessionStore, testScope)
+
+        val loginDto = LoginResponseDto(
+            accessToken = "access_token",
+            refreshToken = "refresh_token",
+            expiresIn = 3600L,
+            roles = listOf("CASHIER"),
+            branchId = null,
+            branchName = null,
+        )
+        tokenManager.saveSession(loginDto)
+
+        assertEquals(PostAuthDestination.PendingBranchAssignment, tokenManager.resolvePostAuthDestination())
+    }
+
+    @Test
+    fun `updateBranch updates branchId and causes resolvePostAuthDestination to return Main`() = runTest {
+        val testDispatcher = UnconfinedTestDispatcher(testScheduler)
+        val testScope = TestScope(testDispatcher)
+
+        val secureStorage = FakeSecureTokenStorage()
+        val sessionStore = FakeSessionStore()
+        val tokenManager = TokenManager(secureStorage, sessionStore, testScope)
+
+        val loginDto = LoginResponseDto(
+            accessToken = "access_token",
+            refreshToken = "refresh_token",
+            expiresIn = 3600L,
+            roles = listOf("OWNER"),
+            branchId = null,
+            branchName = null,
+        )
+        tokenManager.saveSession(loginDto)
+
+        assertEquals(PostAuthDestination.SetupBranch, tokenManager.resolvePostAuthDestination())
+
+        tokenManager.updateBranch(branchId = 99L, branchName = "Chi nhánh Cầu Giấy")
+
+        assertEquals(PostAuthDestination.Main, tokenManager.resolvePostAuthDestination())
     }
 }

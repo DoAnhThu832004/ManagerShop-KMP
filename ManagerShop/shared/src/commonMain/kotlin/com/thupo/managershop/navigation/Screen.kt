@@ -19,5 +19,14 @@ sealed interface Screen {
     data object Register : Screen
 
     @Serializable
+    data object SetupBranch : Screen
+
+    @Serializable
+    data class PendingApproval(val username: String) : Screen
+
+    @Serializable
+    data object PendingBranchAssignment : Screen
+
+    @Serializable
     data object Main : Screen
 }

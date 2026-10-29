@@ -27,6 +27,9 @@ interface SessionStore {
     /** Flow thông tin chi nhánh — emit null khi chưa đăng nhập. */
     fun getBranchInfo(): Flow<Pair<Long?, String?>?>
 
+    /** Cập nhật thông tin chi nhánh vào DataStore sau khi tạo hoặc phân bổ quầy thành công. */
+    suspend fun updateBranch(branchId: Long, branchName: String)
+
     /** Xóa toàn bộ thông tin phiên (đăng xuất). Giữ nguyên cấu hình Onboarding. */
     suspend fun clearUserData()
 

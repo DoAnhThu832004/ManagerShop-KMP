@@ -49,6 +49,13 @@ class DataStoreSessionStore(
         }
     }
 
+    override suspend fun updateBranch(branchId: Long, branchName: String) {
+        dataStore.edit { prefs ->
+            prefs[KEY_BRANCH_ID] = branchId
+            prefs[KEY_BRANCH_NAME] = branchName
+        }
+    }
+
     override suspend fun clearUserData() {
         dataStore.edit { prefs ->
             prefs.remove(KEY_ROLES)

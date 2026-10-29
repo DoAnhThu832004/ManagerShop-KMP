@@ -2,12 +2,15 @@
 package com.thupo.managershop.data.repository
 
 import com.thupo.managershop.core.AppDispatchers
+import com.thupo.managershop.core.AppError
 import com.thupo.managershop.core.Resource
 import com.thupo.managershop.core.safeApiCall
 import com.thupo.managershop.data.local.TokenManager
 import com.thupo.managershop.data.remote.api.AuthApi
+import com.thupo.managershop.data.remote.dto.AccountStatusResponseDto
 import com.thupo.managershop.data.remote.dto.LoginRequestDto
 import com.thupo.managershop.data.remote.dto.LoginResponseDto
+import com.thupo.managershop.data.remote.dto.RefreshTokenRequestDto
 import com.thupo.managershop.data.remote.dto.RegisterRequestDto
 import com.thupo.managershop.data.remote.dto.RegisterResponseDto
 import com.thupo.managershop.domain.repository.AuthRepository
@@ -61,5 +64,26 @@ class AuthRepositoryImpl(
         return safeApiCall(dispatchers.io) {
             authApi.register(request)
         }
+    }
+
+    override suspend fun checkAccountStatus(username: String): Resource<AccountStatusResponseDto> {
+        return safeApiCall(dispatchers.io) {
+            authApi.checkAccountStatus(username)
+        }
+    }
+
+    override suspend fun refreshSession(): Resource<LoginResponseDto> {
+        val currentRefresh = tokenManager.getRefreshToken()
+            ?: return Resource.Error(AppError.Unauthorized("Chưa có phiên đăng nhập"))
+
+        val result = safeApiCall(dispatchers.io) {
+            authApi.refresh(RefreshTokenRequestDto(refreshToken = currentRefresh))
+        }
+
+        if (result is Resource.Success) {
+            tokenManager.saveSession(result.data)
+        }
+
+        return result
     }
 }

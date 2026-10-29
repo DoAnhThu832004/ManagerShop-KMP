@@ -6,6 +6,7 @@ package com.thupo.managershop.core
  * Map từ [com.thupo.managershop.data.remote.dto.ErrorResponseDto] qua extension [toAppError()].
  */
 sealed class AppError {
+    abstract val message: String
 
     // ── Authentication / Authorization ──────────────────────────────────────
 
@@ -16,7 +17,7 @@ sealed class AppError {
      */
     data class InvalidCredentials(
         val captchaRequired: Boolean,
-        val message: String,
+        override val message: String,
     ) : AppError()
 
     /**
@@ -26,7 +27,7 @@ sealed class AppError {
      */
     data class AccountLocked(
         val retryAfterSeconds: Long,
-        val message: String,
+        override val message: String,
     ) : AppError()
 
     /**
@@ -35,47 +36,53 @@ sealed class AppError {
      */
     data class RateLimited(
         val retryAfterSeconds: Long,
-        val message: String,
+        override val message: String,
     ) : AppError()
 
     /**
      * Phiên đăng nhập hết hạn hoặc refresh token bị tái sử dụng.
      * Backend code: AUTH_TOKEN_EXPIRED / AUTH_REFRESH_REUSED (HTTP 401)
      */
-    data class SessionExpired(val message: String) : AppError()
+    data class SessionExpired(override val message: String) : AppError()
 
     /** Mật khẩu mới không đáp ứng chính sách bảo mật. */
-    data class PasswordPolicy(val message: String) : AppError()
+    data class PasswordPolicy(override val message: String) : AppError()
 
     /** Mật khẩu mới đã được dùng trước đó. */
-    data class PasswordReused(val message: String) : AppError()
+    data class PasswordReused(override val message: String) : AppError()
 
     /** Tên đăng nhập hoặc email đã tồn tại trong hệ thống (HTTP 409). */
-    data class UserAlreadyExists(val message: String) : AppError()
+    data class UserAlreadyExists(override val message: String) : AppError()
 
     /** Tính năng đăng ký tài khoản tạm thời bị vô hiệu hoá (HTTP 403). */
-    data class RegistrationDisabled(val message: String) : AppError()
+    data class RegistrationDisabled(override val message: String) : AppError()
 
     /** Tài khoản đang chờ quản trị viên phê duyệt và phân bổ chi nhánh (HTTP 403). */
-    data class AccountPendingApproval(val message: String) : AppError()
+    data class AccountPendingApproval(override val message: String) : AppError()
 
     /** Không có quyền thực hiện thao tác (HTTP 403). */
-    data class Forbidden(val message: String) : AppError()
+    data class Forbidden(override val message: String) : AppError()
+
+    /** Chưa xác thực / Chưa đăng nhập (HTTP 401). */
+    data class Unauthorized(override val message: String) : AppError()
+
+    /** Xung đột dữ liệu / Đã tồn tại (HTTP 409). */
+    data class Conflict(override val message: String) : AppError()
 
     // ── Lỗi kỹ thuật ────────────────────────────────────────────────────────
 
     /** Không có kết nối mạng hoặc không thể kết nối tới server. */
-    data class Network(val message: String) : AppError()
+    data class Network(override val message: String) : AppError()
 
     /** Yêu cầu hết thời gian chờ (timeout). */
-    data class Timeout(val message: String) : AppError()
+    data class Timeout(override val message: String) : AppError()
 
     /** Không parse được JSON response từ server. */
-    data class Serialization(val message: String) : AppError()
+    data class Serialization(override val message: String) : AppError()
 
     /** Lỗi phía máy chủ (HTTP 5xx). */
-    data class Server(val status: Int, val message: String) : AppError()
+    data class Server(val status: Int, override val message: String) : AppError()
 
     /** Lỗi không xác định / chưa được xử lý. */
-    data class Unknown(val message: String) : AppError()
+    data class Unknown(override val message: String) : AppError()
 }

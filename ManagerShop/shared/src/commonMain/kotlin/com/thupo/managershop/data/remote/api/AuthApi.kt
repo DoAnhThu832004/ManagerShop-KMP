@@ -1,6 +1,7 @@
 // shared/src/commonMain/kotlin/com/thupo/managershop/data/remote/api/AuthApi.kt
 package com.thupo.managershop.data.remote.api
 
+import com.thupo.managershop.data.remote.dto.AccountStatusResponseDto
 import com.thupo.managershop.data.remote.dto.ChangePasswordRequestDto
 import com.thupo.managershop.data.remote.dto.ForgotPasswordRequestDto
 import com.thupo.managershop.data.remote.dto.LoginRequestDto
@@ -53,6 +54,9 @@ interface AuthApi {
 
     /** Thu hồi một phiên đăng nhập cụ thể (DELETE auth/sessions/{id}) */
     suspend fun revokeSession(sessionId: Long)
+
+    /** Kiểm tra trạng thái phê duyệt tài khoản (GET auth/check-status?username=...) */
+    suspend fun checkAccountStatus(username: String): AccountStatusResponseDto
 }
 
 /**
@@ -61,6 +65,14 @@ interface AuthApi {
 class AuthApiImpl(
     private val httpClient: HttpClient,
 ) : AuthApi {
+
+    override suspend fun checkAccountStatus(username: String): AccountStatusResponseDto {
+        return httpClient.get("auth/check-status") {
+            url {
+                parameters.append("username", username)
+            }
+        }.body()
+    }
 
     override suspend fun login(request: LoginRequestDto): LoginResponseDto {
         return httpClient.post("auth/login") {

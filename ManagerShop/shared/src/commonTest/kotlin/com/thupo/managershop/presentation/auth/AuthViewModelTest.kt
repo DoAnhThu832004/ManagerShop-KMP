@@ -2,8 +2,12 @@ package com.thupo.managershop.presentation.auth
 
 import com.thupo.managershop.core.AppError
 import com.thupo.managershop.core.Resource
+import com.thupo.managershop.data.local.TokenManager
 import com.thupo.managershop.data.remote.dto.RegisterResponseDto
 import com.thupo.managershop.testutil.FakeAuthRepository
+import com.thupo.managershop.testutil.FakeSecureTokenStorage
+import com.thupo.managershop.testutil.FakeSessionStore
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -24,13 +28,26 @@ class AuthViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var authRepository: FakeAuthRepository
+    private lateinit var tokenManager: TokenManager
+    private lateinit var sessionStore: FakeSessionStore
+    private lateinit var secureStorage: FakeSecureTokenStorage
     private lateinit var viewModel: AuthViewModel
 
     @BeforeTest
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
         authRepository = FakeAuthRepository()
-        viewModel = AuthViewModel(authRepository = authRepository)
+        secureStorage = FakeSecureTokenStorage()
+        sessionStore = FakeSessionStore()
+        tokenManager = TokenManager(
+            secureStorage = secureStorage,
+            sessionStore = sessionStore,
+            appScope = CoroutineScope(testDispatcher),
+        )
+        viewModel = AuthViewModel(
+            authRepository = authRepository,
+            tokenManager = tokenManager,
+        )
     }
 
     @AfterTest

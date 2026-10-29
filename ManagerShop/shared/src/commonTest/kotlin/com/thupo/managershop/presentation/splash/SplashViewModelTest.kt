@@ -66,8 +66,8 @@ class SplashViewModelTest {
     }
 
     @Test
-    fun checkDestination_whenCashierHasNoBranch_emitsLogin() = runTest(testDispatcher) {
-        // Kịch bản POS: Thu ngân có token nhưng chưa có branchId -> Không được vào Main
+    fun checkDestination_whenCashierHasNoBranch_emitsPendingBranchAssignment() = runTest(testDispatcher) {
+        // Kịch bản POS V2: Thu ngân có token nhưng chưa có branchId -> Vào màn hình chờ gán quầy
         fakeSessionStore.setOnboardingCompleted(true)
         fakeSecureStorage.saveTokens("access_token", "refresh_token")
         fakeSessionStore.saveUserData(listOf("CASHIER"), branchId = null, branchName = null)
@@ -75,12 +75,12 @@ class SplashViewModelTest {
         val viewModel = SplashViewModel(fakeSessionStore, tokenManager)
         advanceUntilIdle()
 
-        assertEquals(SplashDestination.Login, viewModel.destination.value)
+        assertEquals(SplashDestination.PendingBranchAssignment, viewModel.destination.value)
     }
 
     @Test
-    fun checkDestination_whenAdminHasNoBranch_emitsMain() = runTest(testDispatcher) {
-        // Kịch bản POS: Quản trị viên (ADMIN) toàn quyền có thể không gán chi nhánh cố định
+    fun checkDestination_whenAdminHasNoBranch_emitsSetupBranch() = runTest(testDispatcher) {
+        // Kịch bản POS V2: Chủ shop (ADMIN/OWNER) chưa có chi nhánh -> Điều hướng vào khởi tạo Cửa hàng
         fakeSessionStore.setOnboardingCompleted(true)
         fakeSecureStorage.saveTokens("access_token", "refresh_token")
         fakeSessionStore.saveUserData(listOf("ADMIN"), branchId = null, branchName = null)
@@ -88,7 +88,7 @@ class SplashViewModelTest {
         val viewModel = SplashViewModel(fakeSessionStore, tokenManager)
         advanceUntilIdle()
 
-        assertEquals(SplashDestination.Main, viewModel.destination.value)
+        assertEquals(SplashDestination.SetupBranch, viewModel.destination.value)
     }
 
     @Test

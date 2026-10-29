@@ -54,6 +54,10 @@ class FakeSessionStore(
 
     override fun getBranchInfo(): Flow<Pair<Long?, String?>?> = branchState
 
+    override suspend fun updateBranch(branchId: Long, branchName: String) {
+        branchState.value = Pair(branchId, branchName)
+    }
+
     override suspend fun clearUserData() {
         rolesState.value = emptyList()
         branchState.value = null

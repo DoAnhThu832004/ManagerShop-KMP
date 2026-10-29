@@ -15,11 +15,17 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import com.thupo.managershop.data.local.SessionEvent
 import com.thupo.managershop.data.local.TokenManager
 import com.thupo.managershop.presentation.auth.AuthFlowScreen
+import com.thupo.managershop.presentation.auth.AuthNavTarget
 import com.thupo.managershop.presentation.auth.AuthScreenType
 import com.thupo.managershop.presentation.auth.AuthViewModel
+import com.thupo.managershop.presentation.auth.PendingApprovalScreen
+import com.thupo.managershop.presentation.auth.PendingBranchAssignmentScreen
+import com.thupo.managershop.presentation.branch.BranchViewModel
+import com.thupo.managershop.presentation.branch.SetupBranchScreen
 import com.thupo.managershop.presentation.main.MainScreen
 import com.thupo.managershop.presentation.onboarding.FashionOnboardingScreen
 import com.thupo.managershop.presentation.splash.SplashDestination
@@ -56,7 +62,7 @@ fun AppNavHost(
         popEnterTransition = { fadeIn(animationSpec = tween(400)) },
         popExitTransition = { fadeOut(animationSpec = tween(400)) }
     ) {
-        // ── Màn hình Splash với Two-way Barrier ─────────────────────────────────
+        // ── Màn hình Splash với Two-way Barrier & Multi-branch Routing ─────────
         composable<Screen.Splash> {
             val splashViewModel: SplashViewModel = koinViewModel()
             val destination by splashViewModel.destination.collectAsState()
@@ -70,6 +76,8 @@ fun AppNavHost(
                         SplashDestination.Onboarding -> Screen.Onboarding
                         SplashDestination.Main -> Screen.Main
                         SplashDestination.Login -> Screen.Login
+                        SplashDestination.SetupBranch -> Screen.SetupBranch
+                        SplashDestination.PendingBranchAssignment -> Screen.PendingBranchAssignment
                     }
                     navController.navigate(targetRoute) {
                         popUpTo<Screen.Splash> { inclusive = true }
@@ -113,8 +121,64 @@ fun AppNavHost(
         // ── Màn hình Authentication (Login / Register Flow) ────────────────────
         composable<Screen.Login> {
             val authViewModel: AuthViewModel = koinViewModel()
+
+            // Lắng nghe sự kiện phân luồng thông minh sau xác thực
+            LaunchedEffect(authViewModel) {
+                authViewModel.navEvents.collect { target ->
+                    when (target) {
+                        AuthNavTarget.Main -> {
+                            navController.navigate(Screen.Main) {
+                                popUpTo(0) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                        AuthNavTarget.SetupBranch -> {
+                            navController.navigate(Screen.SetupBranch) {
+                                popUpTo(0) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                        AuthNavTarget.PendingBranchAssignment -> {
+                            navController.navigate(Screen.PendingBranchAssignment) {
+                                popUpTo(0) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                        is AuthNavTarget.PendingApproval -> {
+                            navController.navigate(Screen.PendingApproval(username = target.username))
+                        }
+                    }
+                }
+            }
+
             AuthFlowScreen(
                 initialScreen = AuthScreenType.Login,
+                viewModel = authViewModel,
+                onLoginSuccess = {
+                    // Fallback nếu không có event riêng
+                },
+                onBackFromLogin = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        composable<Screen.Register> {
+            val authViewModel: AuthViewModel = koinViewModel()
+
+            LaunchedEffect(authViewModel) {
+                authViewModel.navEvents.collect { target ->
+                    when (target) {
+                        is AuthNavTarget.PendingApproval -> {
+                            navController.navigate(Screen.PendingApproval(username = target.username))
+                        }
+                        else -> {}
+                    }
+                }
+            }
+
+            AuthFlowScreen(
+                initialScreen = AuthScreenType.Register,
                 viewModel = authViewModel,
                 onLoginSuccess = {
                     navController.navigate(Screen.Main) {
@@ -128,19 +192,55 @@ fun AppNavHost(
             )
         }
 
-        composable<Screen.Register> {
+        // ── Màn hình Thiết lập Chi nhánh đầu tiên (Chủ shop mới) ───────────────
+        composable<Screen.SetupBranch> {
+            val branchViewModel: BranchViewModel = koinViewModel()
+
+            SetupBranchScreen(
+                viewModel = branchViewModel,
+                onSetupSuccess = {
+                    navController.navigate(Screen.Main) {
+                        popUpTo(0) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+
+        // ── Màn hình Chờ phê duyệt tài khoản (Tokenless State) ─────────────────
+        composable<Screen.PendingApproval> { backStackEntry ->
+            val args = backStackEntry.toRoute<Screen.PendingApproval>()
             val authViewModel: AuthViewModel = koinViewModel()
-            AuthFlowScreen(
-                initialScreen = AuthScreenType.Register,
+
+            PendingApprovalScreen(
+                username = args.username,
                 viewModel = authViewModel,
-                onLoginSuccess = {
+                onNavigateToLogin = {
+                    navController.navigate(Screen.Login) {
+                        popUpTo(0) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+
+        // ── Màn hình Thu ngân chờ phân bổ quầy ─────────────────────────────────
+        composable<Screen.PendingBranchAssignment> {
+            val authViewModel: AuthViewModel = koinViewModel()
+
+            PendingBranchAssignmentScreen(
+                viewModel = authViewModel,
+                onBranchAssigned = {
                     navController.navigate(Screen.Main) {
                         popUpTo(0) { inclusive = true }
                         launchSingleTop = true
                     }
                 },
-                onBackFromLogin = {
-                    navController.popBackStack()
+                onLogout = {
+                    navController.navigate(Screen.Login) {
+                        popUpTo(0) { inclusive = true }
+                        launchSingleTop = true
+                    }
                 }
             )
         }

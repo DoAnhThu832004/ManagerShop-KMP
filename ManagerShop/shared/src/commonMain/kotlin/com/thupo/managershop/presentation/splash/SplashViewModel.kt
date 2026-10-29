@@ -2,6 +2,7 @@ package com.thupo.managershop.presentation.splash
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.thupo.managershop.data.local.PostAuthDestination
 import com.thupo.managershop.data.local.SessionStore
 import com.thupo.managershop.data.local.TokenManager
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,8 +20,14 @@ sealed interface SplashDestination {
     /** Người dùng đã xem Onboarding nhưng chưa đăng nhập -> Vào màn hình Đăng nhập */
     data object Login : SplashDestination
 
-    /** Người dùng đã đăng nhập và phiên hợp lệ -> Vào thẳng màn hình Bán hàng */
+    /** Người dùng đã đăng nhập và đã có chi nhánh -> Vào thẳng màn hình Bán hàng */
     data object Main : SplashDestination
+
+    /** Chủ shop mới (OWNER/ADMIN) chưa có chi nhánh -> Vào tạo Chi nhánh đầu tiên */
+    data object SetupBranch : SplashDestination
+
+    /** Thu ngân (CASHIER/STAFF) chưa có chi nhánh -> Chờ gán quầy */
+    data object PendingBranchAssignment : SplashDestination
 }
 
 /**
@@ -50,10 +57,13 @@ class SplashViewModel(
                 val hasCompletedOnboarding = sessionStore.hasCompletedOnboarding()
                 if (!hasCompletedOnboarding) {
                     _destination.value = SplashDestination.Onboarding
-                } else if (tokenManager.hasValidSession()) {
-                    _destination.value = SplashDestination.Main
                 } else {
-                    _destination.value = SplashDestination.Login
+                    when (tokenManager.resolvePostAuthDestination()) {
+                        PostAuthDestination.Main -> _destination.value = SplashDestination.Main
+                        PostAuthDestination.SetupBranch -> _destination.value = SplashDestination.SetupBranch
+                        PostAuthDestination.PendingBranchAssignment -> _destination.value = SplashDestination.PendingBranchAssignment
+                        PostAuthDestination.Login -> _destination.value = SplashDestination.Login
+                    }
                 }
             } catch (e: Throwable) {
                 // Phòng vệ khi có lỗi đọc storage: fallback an toàn về Login

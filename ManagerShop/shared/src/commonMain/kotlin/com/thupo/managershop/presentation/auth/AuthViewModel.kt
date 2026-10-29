@@ -6,15 +6,30 @@ import androidx.lifecycle.viewModelScope
 import com.thupo.getPlatform
 import com.thupo.managershop.core.AppError
 import com.thupo.managershop.core.Resource
+import com.thupo.managershop.data.local.PostAuthDestination
+import com.thupo.managershop.data.local.TokenManager
 import com.thupo.managershop.domain.repository.AuthRepository
 import com.thupo.managershop.domain.usecase.ValidatePasswordUseCase
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+
+/**
+ * Mục tiêu điều hướng sau khi thực hiện thao tác Authentication.
+ */
+sealed interface AuthNavTarget {
+    data object Main : AuthNavTarget
+    data object SetupBranch : AuthNavTarget
+    data object PendingBranchAssignment : AuthNavTarget
+    data class PendingApproval(val username: String) : AuthNavTarget
+}
 
 data class LoginUiState(
     val identifier: String = "",
@@ -42,8 +57,12 @@ data class RegisterUiState(
 
 class AuthViewModel(
     private val authRepository: AuthRepository,
+    private val tokenManager: TokenManager,
     private val validatePasswordUseCase: ValidatePasswordUseCase = ValidatePasswordUseCase(),
 ) : ViewModel() {
+
+    private val _navEvents = MutableSharedFlow<AuthNavTarget>(replay = 0)
+    val navEvents: SharedFlow<AuthNavTarget> = _navEvents.asSharedFlow()
 
     private val _loginState = MutableStateFlow(LoginUiState())
     val loginState: StateFlow<LoginUiState> = _loginState.asStateFlow()
@@ -88,6 +107,14 @@ class AuthViewModel(
             when (result) {
                 is Resource.Success -> {
                     _loginState.update { it.copy(isLoading = false, isSuccess = true) }
+                    val dest = tokenManager.resolvePostAuthDestination()
+                    val target = when (dest) {
+                        PostAuthDestination.Main -> AuthNavTarget.Main
+                        PostAuthDestination.SetupBranch -> AuthNavTarget.SetupBranch
+                        PostAuthDestination.PendingBranchAssignment -> AuthNavTarget.PendingBranchAssignment
+                        PostAuthDestination.Login -> AuthNavTarget.Main
+                    }
+                    _navEvents.emit(target)
                     onSuccess()
                 }
 
@@ -102,7 +129,7 @@ class AuthViewModel(
         }
     }
 
-    private fun handleLoginError(error: AppError) {
+    private suspend fun handleLoginError(error: AppError) {
         when (error) {
             is AppError.InvalidCredentials -> {
                 _loginState.update {
@@ -133,6 +160,7 @@ class AuthViewModel(
                         errorMessage = error.message.ifBlank { "Tài khoản của bạn đang chờ quản trị viên phê duyệt và phân bổ chi nhánh" },
                     )
                 }
+                _navEvents.emit(AuthNavTarget.PendingApproval(_loginState.value.identifier.trim()))
             }
 
             is AppError.RateLimited -> {
@@ -289,7 +317,9 @@ class AuthViewModel(
                         )
                     }
 
-                    if (!isPending) {
+                    if (isPending) {
+                        _navEvents.emit(AuthNavTarget.PendingApproval(username))
+                    } else {
                         // Sau khi đăng ký thành công, điền sẵn thông tin sang màn hình đăng nhập
                         _loginState.update { it.copy(identifier = username, password = state.password) }
                         onSuccess()
@@ -318,6 +348,45 @@ class AuthViewModel(
                 is Resource.Loading -> {
                     _registerState.update { it.copy(isLoading = true) }
                 }
+            }
+        }
+    }
+
+    /**
+     * Kiểm tra nhanh trạng thái phê duyệt tài khoản (Public, không cần token).
+     */
+    fun checkAccountStatus(
+        username: String,
+        onResult: (isApproved: Boolean, message: String) -> Unit,
+    ) {
+        viewModelScope.launch {
+            val result = authRepository.checkAccountStatus(username)
+            when (result) {
+                is Resource.Success -> {
+                    val isApproved = result.data.status.equals("ACTIVE", ignoreCase = true)
+                    onResult(isApproved, result.data.message ?: "")
+                }
+                is Resource.Error -> {
+                    onResult(false, result.appError.message.ifBlank { "Không thể kiểm tra trạng thái lúc này" })
+                }
+                else -> {}
+            }
+        }
+    }
+
+    /**
+     * Thu ngân làm mới phiên để kiểm tra xem đã được Quản lý phân bổ chi nhánh hay chưa.
+     */
+    fun refreshCurrentSession(
+        onAssigned: (branchName: String) -> Unit,
+        onStillPending: () -> Unit,
+    ) {
+        viewModelScope.launch {
+            val result = authRepository.refreshSession()
+            if (result is Resource.Success && result.data.branchId != null) {
+                onAssigned(result.data.branchName ?: "Chi nhánh mới")
+            } else {
+                onStillPending()
             }
         }
     }

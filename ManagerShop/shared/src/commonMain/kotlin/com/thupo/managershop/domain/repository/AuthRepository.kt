@@ -2,6 +2,7 @@
 package com.thupo.managershop.domain.repository
 
 import com.thupo.managershop.core.Resource
+import com.thupo.managershop.data.remote.dto.AccountStatusResponseDto
 import com.thupo.managershop.data.remote.dto.LoginResponseDto
 import com.thupo.managershop.data.remote.dto.RegisterResponseDto
 
@@ -31,4 +32,14 @@ interface AuthRepository {
         password: String,
         confirmPassword: String,
     ): Resource<RegisterResponseDto>
+
+    /**
+     * Kiểm tra trạng thái tài khoản (chờ duyệt hay đã active) mà không cần token.
+     */
+    suspend fun checkAccountStatus(username: String): Resource<AccountStatusResponseDto>
+
+    /**
+     * Làm mới token và cập nhật thông tin phân bổ chi nhánh mới nhất từ Server.
+     */
+    suspend fun refreshSession(): Resource<LoginResponseDto>
 }
